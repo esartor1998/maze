@@ -46,7 +46,7 @@
 
 # LINUX - Note that these will probably work but they can differ depending
 # on your distribution.
-COMPILER = x86_64-w64-mingw32
+COMPILER = gcc
 LIBS = -lGL -lGLU -lglut -lm -D__LINUX__
 
 a1: a1.c graphics.c visible.c graphics.h
