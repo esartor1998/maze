@@ -51,3 +51,7 @@ LIBS = -lGL -lGLU -lglut -lm -D__LINUX__
 
 a1: a1.c graphics.c visible.c graphics.h
 	$(COMPILER) a1.c graphics.c visible.c -o a1 $(LIBS)
+
+clean:
+	rm -f a1
+	rm -f *.o
