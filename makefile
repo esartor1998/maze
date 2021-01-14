@@ -47,9 +47,9 @@
 # LINUX - Note that these will probably work but they can differ depending
 # on your distribution.
 COMPILER = gcc -v   
-LIBS = -lGL -lglu32 -lglut32 -lm -D__LINUX__
+LIBS = -lopengl32 -lglu32 -lm -D__LINUX__
 a1: a1.c graphics.c visible.c graphics.h
-	$(COMPILER) a1.c graphics.c visible.c -o a1 $(LIBS)
+	$(COMPILER) a1.c graphics.c visible.c -o a1 -mwindows glut32.lib $(LIBS)
 
 clean:
 	rm -f a1
