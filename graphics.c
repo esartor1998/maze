@@ -7,10 +7,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <stdbool.h>
 
 #include "graphics.h"
 
-GLubyte  world[WORLDX][WORLDY][WORLDZ];
+GLubyte world[WORLDX][WORLDY][WORLDZ];
 
 #define MOB_COUNT 10
 #define PLAYER_COUNT 10
@@ -23,86 +24,86 @@ extern void mouse(int, int, int, int);
 extern void draw2D();
 
 
-	/* flags used to control the appearance of the image */
+/* flags used to control the appearance of the image */
 int lineDrawing = 0;	// draw polygons as solid or lines
 int lighting = 1;	// use diffuse and specular lighting
 int smoothShading = 1;  // smooth or flat shading
 int textures = 0;
 
-	/* texture data */
+/* texture data */
 GLubyte  Image[64][64][4];
 GLuint   textureID[1];
 
-	/* viewpoint coordinates */
+/* viewpoint coordinates */
 float vpx = -50.0, vpy = -50.0, vpz = -50.0;
 float oldvpx, oldvpy, oldvpz;
 
-	/* mouse direction coordiates */
+/* mouse direction coordiates */
 float mvx = 0.0, mvy = 45.0, mvz = 0.0;
 
-	/* stores current mouse position value */
+/* stores current mouse position value */
 float oldx, oldy;
 
-	/* location for the light source (the sun), the first three
-		values are the x,y,z coordinates */
+/* location for the light source (the sun), the first three
+	values are the x,y,z coordinates */
 GLfloat lightPosition[] = {0.0, 49.0, 0.0, 0.0};
-	/* location for light source that is kept at viewpoint location */
+/* location for light source that is kept at viewpoint location */
 GLfloat viewpointLight[] = {-50.0, -50.0, -50.0, 1.0};
 
-	/* sky cube size */
+/* sky cube size */
 float skySize;
 
-	/* screen dimensions */
+/* screen dimensions */
 int screenWidth = 1024;
 int screenHeight = 768;
 
-	/* command line flags */
-int flycontrol = 1;		 // allow viewpoint to move in y axis when 1
+/* command line flags */
+int flycontrol = 0;		 // allow viewpoint to move in y axis when 1
 int displayAllCubes = 0; // draw all of the cubes in the world when 1
 int testWorld = 0;		 // sample world for timing tests
 int fps = 0;			    // turn on frame per second output
 int netClient = 0;		 // network client flag, is client when = 1
 int netServer = 0;		 // network server flag, is server when = 1
 
-	/* list of cubes to display */
+/* list of cubes to display */
 int displayList[MAX_DISPLAY_LIST][3];
 int displayCount = 0;		// count of cubes in displayList[][]
 
-	/* list of mobs - number of mobs, xyz values and rotation about y */
+/* list of mobs - number of mobs, xyz values and rotation about y */
 float mobPosition[MOB_COUNT][4];
-	/* visibility of mobs, 0 not drawn, 1 drawn */
+/* visibility of mobs, 0 not drawn, 1 drawn */
 short mobVisible[MOB_COUNT];
 
-	/* list of players - number of mobs, xyz values and rotation about y */
+/* list of players - number of mobs, xyz values and rotation about y */
 float playerPosition[PLAYER_COUNT][4];
-	/* visibility of players, 0 not drawn, 1 drawn */
+/* visibility of players, 0 not drawn, 1 drawn */
 short playerVisible[PLAYER_COUNT];
 
-	/* list of tubes - number of tubes, staring x, y, z position, ending  */
-	/*  x, y, z position */
+/* list of tubes - number of tubes, staring x, y, z position, ending  */
+/*  x, y, z position */
 float tubeData[TUBE_COUNT][6];
-	/* tube colour for each tube */
+/* tube colour for each tube */
 int   tubeColour[TUBE_COUNT];
-	/* visibility of tubes, 0 not drawn, 1 drawn */
+/* visibility of tubes, 0 not drawn, 1 drawn */
 short tubeVisible[TUBE_COUNT];
 
-	/* flag indicating the user wants the cube in front of them removed */
+/* flag indicating the user wants the cube in front of them removed */
 int space = 0;
-		  /* flag indicates if map is to be printed */
+/* flag indicates if map is to be printed */
 int displayMap = 1;
-	/* flag indicating a fixed viewpoint - not updated by mouse/keyboard */
+/* flag indicating a fixed viewpoint - not updated by mouse/keyboard */
 int fixedVP = 0;
 
-	/* list of user defined colours */
-	/* ambient (RGBA) followed by diffuse (RGBA) */
+/* list of user defined colours */
+/* ambient (RGBA) followed by diffuse (RGBA) */
 GLfloat uAmbColour[NUMBERCOLOURS][4];
 GLfloat uDifColour[NUMBERCOLOURS][4];
-	/* flag indicating user defined colour has been allocated */
-	/* initialized to 0, set to 1 when colour stored in uColour[][] */
+/* flag indicating user defined colour has been allocated */
+/* initialized to 0, set to 1 when colour stored in uColour[][] */
 int uColourUsed[NUMBERCOLOURS];
 
-
-	/* functions draw 2D images */
+bool usegravity = true;
+/* functions draw 2D images */
 void  draw2Dline(int, int, int, int, int);
 void  draw2Dbox(int, int, int, int);
 void  draw2Dtriangle(int, int, int, int, int, int);
@@ -112,8 +113,8 @@ void  set2Dcolour(float []);
 
 
 
-	/* player control functions */
-	/* set all player location, rotation, and visibility values to zero */
+/* player control functions */
+/* set all player location, rotation, and visibility values to zero */
 void initPlayerArray() {
 int i;
 	for (i=0; i<MOB_COUNT; i++) {
@@ -125,8 +126,8 @@ int i;
 	}
 }
 
-	/* create player with identifier "number" at x,y,z with */
-	/* heading of rotx, roty, rotz */
+/*** create player with identifier "number" at x,y,z with
+ heading of rotx, roty, rotz. num x y z roty***/
 void createPlayer(int number, float x, float y, float z, float playerroty) {
 	if (number >= PLAYER_COUNT) {
 		printf("ERROR: player number greater than %d\n", PLAYER_COUNT);
@@ -139,7 +140,7 @@ void createPlayer(int number, float x, float y, float z, float playerroty) {
 	playerVisible[number] = 1;
 }
 
-	/* move player to a new position xyz with rotation rotx,roty,rotz */
+/* move player to a new position xyz with rotation roty */
 void setPlayerPosition(int number, float x, float y, float z, float playerroty){
 	if (number >= PLAYER_COUNT) {
 		printf("ERROR: player number greater than %d\n", PLAYER_COUNT);
@@ -151,7 +152,7 @@ void setPlayerPosition(int number, float x, float y, float z, float playerroty){
 	playerPosition[number][3] = playerroty;
 }
 
-	/* turn off drawing for player number */
+/* turn off drawing for player number */
 void hidePlayer(int number) {
 	if (number >= PLAYER_COUNT) {
 		printf("ERROR: player number greater than %d\n", PLAYER_COUNT);
@@ -160,7 +161,7 @@ void hidePlayer(int number) {
 	playerVisible[number] = 0;
 }
 
-	/* turn on drawing for player number */
+/* turn on drawing for player number */
 void showPlayer(int number) {
 	if (number >= PLAYER_COUNT) {
 		printf("ERROR: player number greater than %d\n", PLAYER_COUNT);
@@ -171,8 +172,8 @@ void showPlayer(int number) {
 
 
 
-	/* mob control functions */
-	/* set all mob location, rotation, and visibility values to zero */
+/* mob control functions */
+/* set all mob location, rotation, and visibility values to zero */
 void initMobArray() {
 int i;
 	for (i=0; i<MOB_COUNT; i++) {
@@ -184,8 +185,8 @@ int i;
 	}
 }
 
-	/* create mob with identifier "number" at x,y,z with */
-	/* heading of rotx, roty, rotz */
+/* create mob with identifier "number" at x,y,z with */
+/* heading of rotx, roty, rotz */
 void createMob(int number, float x, float y, float z, float mobroty) {
 	if (number >= MOB_COUNT) {
 		printf("ERROR: mob number greater than %d\n", MOB_COUNT);
@@ -198,7 +199,7 @@ void createMob(int number, float x, float y, float z, float mobroty) {
 	mobVisible[number] = 1;
 }
 
-	/* move mob to a new position xyz with rotation rotx,roty,rotz */
+/* move mob to a new position xyz with rotation rotx,roty,rotz */
 void setMobPosition(int number, float x, float y, float z, float mobroty){
 	if (number >= MOB_COUNT) {
 		printf("ERROR: mob number greater than %d\n", MOB_COUNT);
@@ -210,7 +211,7 @@ void setMobPosition(int number, float x, float y, float z, float mobroty){
 	mobPosition[number][3] = mobroty;
 }
 
-	/* turn off drawing for mob number */
+/* turn off drawing for mob number */
 void hideMob(int number) {
 	if (number >= MOB_COUNT) {
 		printf("ERROR: mob number greater than %d\n", MOB_COUNT);
@@ -219,7 +220,7 @@ void hideMob(int number) {
 	mobVisible[number] = 0;
 }
 
-	/* turn on drawing for mob number */
+/* turn on drawing for mob number */
 void showMob(int number) {
 	if (number >= MOB_COUNT) {
 		printf("ERROR: mob number greater than %d\n", MOB_COUNT);
@@ -229,7 +230,7 @@ void showMob(int number) {
 }
 
 
-	/* initialize all tubes as not visible */
+/* initialize all tubes as not visible */
 void initTubeArray(){
 int i;
 	for (i=0; i<TUBE_COUNT; i++) {
@@ -249,7 +250,7 @@ void createTube(int number, float bx, float by, float bz,
 	tubeVisible[number] = 1;
 }
 
-	/* turn off drawing for tube number */
+/* turn off drawing for tube number */
 void hideTube(int number) {
 	if (number >= TUBE_COUNT) {
 		printf("ERROR: tube number greater than %d\n", TUBE_COUNT);
@@ -258,7 +259,7 @@ void hideTube(int number) {
 	tubeVisible[number] = 0;
 }
 
-	/* turn on drawing for tube number */
+/* turn on drawing for tube number */
 void showTube(int number) {
 	if (number >= TUBE_COUNT) {
 		printf("ERROR: tube number greater than %d\n", TUBE_COUNT);
@@ -268,7 +269,7 @@ void showTube(int number) {
 }
 
 
-	/* allows user to set position of the light */
+/* allows user to set position of the light */
 void setLightPosition(GLfloat x, GLfloat y, GLfloat z) {
 	lightPosition[0] = x;
 	lightPosition[1] = y;
@@ -276,12 +277,12 @@ void setLightPosition(GLfloat x, GLfloat y, GLfloat z) {
 	glLightfv (GL_LIGHT0, GL_POSITION, lightPosition);
 }
 
-	/* returns current position of the light */
+/* returns current position of the light */
 GLfloat* getLightPosition() {
 	return(lightPosition);
 }
 
-	/* functions store and return the current location of the viewpoint */
+/* functions store and return the current location of the viewpoint */
 void getViewPosition(float *x, float *y, float *z) {
 	*x = vpx;
 	*y = vpy;
@@ -294,36 +295,36 @@ void setViewPosition(float x, float y, float z) {
 	vpz = z;
 }
 
-	/* returns the previous location of the viewpoint */
+/* returns the previous location of the viewpoint */
 void getOldViewPosition(float *x, float *y, float *z) {
 	*x = oldvpx;
 	*y = oldvpy;
 	*z = oldvpz;
 }
 
-	/* sets the previous location of the viewpoint */
+/* sets the previous location of the viewpoint */
 void setOldViewPosition(float x, float y, float z) {
 	oldvpx = x;
 	oldvpy = y;
 	oldvpz = z;
 }
 
-	/* sets the current orientation of the viewpoint */
+/* sets the current orientation of the viewpoint */
 void setViewOrientation(float xaxis, float yaxis, float zaxis) {
 	mvx = xaxis;
 	mvy = yaxis;
 	mvz = zaxis;
 }
 
-	/* returns the current orientation of the viewpoint */
+/* returns the current orientation of the viewpoint */
 void getViewOrientation(float *xaxis, float *yaxis, float *zaxis) {
 	*xaxis = mvx;
 	*yaxis = mvy;
 	*zaxis = mvz;
 }
 
-		  /* add the cube at world[x][y][z] to the display list and */
-		  /* increment displayCount */
+/* add the cube at world[x][y][z] to the display list and */
+/* increment displayCount */
 void addDisplayList(int x, int y, int z) {
 	displayList[displayCount][0] = x;
 	displayList[displayCount][1] = y;
@@ -381,23 +382,23 @@ void init (void)
 
 }
 
-	/* pass in the number representing the colour, sets OpenGL materials */
+/* pass in the number representing the colour, sets OpenGL materials */
 void setObjectColour(int colourID) {
 	/* predefined colours */
-GLfloat blue[]  = {0.0, 0.0, 1.0, 1.0};
-GLfloat red[]   = {1.0, 0.0, 0.0, 1.0};
-GLfloat green[] = {0.0, 1.0, 0.0, 1.0};
-GLfloat yellow[]   = {1.0, 1.0, 0.0, 1.0};
-GLfloat purple[]   = {1.0, 0.0, 1.0, 1.0};
-GLfloat orange[]   = {1.0, 0.64, 0.0, 1.0};
-GLfloat white[] = {1.0, 1.0, 1.0, 1.0};
-GLfloat black[] = {0.0, 0.0, 0.0, 1.0};
-GLfloat dblue[]  = {0.0, 0.0, 0.5, 1.0};
-GLfloat dred[]   = {0.5, 0.0, 0.0, 1.0};
-GLfloat dgreen[] = {0.0, 0.5, 0.0, 1.0};
-GLfloat dyellow[]   = {0.5, 0.5, 0.0, 1.0};
-GLfloat dpurple[]   = {0.5, 0.0, 0.5, 1.0};
-GLfloat dorange[]   = {0.5, 0.32, 0.0, 1.0};
+	GLfloat blue[]  = {0.0, 0.0, 1.0, 1.0};
+	GLfloat red[]   = {1.0, 0.0, 0.0, 1.0};
+	GLfloat green[] = {0.0, 1.0, 0.0, 1.0};
+	GLfloat yellow[]   = {1.0, 1.0, 0.0, 1.0};
+	GLfloat purple[]   = {1.0, 0.0, 1.0, 1.0};
+	GLfloat orange[]   = {1.0, 0.64, 0.0, 1.0};
+	GLfloat white[] = {1.0, 1.0, 1.0, 1.0};
+	GLfloat black[] = {0.0, 0.0, 0.0, 1.0};
+	GLfloat dblue[]  = {0.0, 0.0, 0.5, 1.0};
+	GLfloat dred[]   = {0.5, 0.0, 0.0, 1.0};
+	GLfloat dgreen[] = {0.0, 0.5, 0.0, 1.0};
+	GLfloat dyellow[]   = {0.5, 0.5, 0.0, 1.0};
+	GLfloat dpurple[]   = {0.5, 0.0, 0.5, 1.0};
+	GLfloat dorange[]   = {0.5, 0.32, 0.0, 1.0};
 
 	/* system defined colours are numbers 1 to 8 */
 	/* user defined colours are 9-99 */
@@ -443,7 +444,7 @@ GLfloat dorange[]   = {0.5, 0.32, 0.0, 1.0};
 }
 
 
-	/* draw cube in world[i][j][k] */
+/* draw cube in world[i][j][k] */
 void drawCube(int i, int j, int k) {
 
 GLfloat white[] = {1.0, 1.0, 1.0, 1.0};
@@ -462,15 +463,15 @@ GLfloat white[] = {1.0, 1.0, 1.0, 1.0};
 
 
 
-	/* called each time the world is redrawn */
+/* called each time the world is redrawn */
 void display (void)
 {
-GLfloat skyblue[]  = {0.52, 0.74, 0.84, 1.0};
-GLfloat black[] = {0.0, 0.0, 0.0, 1.0};
-GLfloat red[] = {1.0, 0.0, 0.0, 1.0};
-GLfloat gray[] = {0.3, 0.3, 0.3, 1.0};
-GLfloat white[] = {1.0, 1.0, 1.0, 1.0};
-int i, j, k;
+	GLfloat skyblue[]  = {0.52, 0.74, 0.84, 1.0};
+	GLfloat black[] = {0.0, 0.0, 0.0, 1.0};
+	GLfloat red[] = {1.0, 0.0, 0.0, 1.0};
+	GLfloat gray[] = {0.3, 0.3, 0.3, 1.0};
+	GLfloat white[] = {1.0, 1.0, 1.0, 1.0};
+	int i, j, k;
 
 	glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -618,13 +619,13 @@ int i, j, k;
 			}
 		}
 	} else {
-	/* draw only the cubes in the displayList */
-	/* these should have been selected in the update function */
+		/* draw only the cubes in the displayList */
+		/* these should have been selected in the update function */
 
 		for(i=0; i<displayCount; i++) {
 			drawCube(displayList[i][0],
-						displayList[i][1],
-						displayList[i][2]);
+					displayList[i][1],
+					displayList[i][2]);
 		}
 	}
 
@@ -661,7 +662,7 @@ int i, j, k;
 	glutSwapBuffers();
 }
 
-	/* sets viewport information */
+/* sets viewport information */
 void reshape(int w, int h)
 {
 	glViewport (0, 0, (GLsizei) w, (GLsizei) h);
@@ -677,11 +678,11 @@ void reshape(int w, int h)
 
 }
 
-	/* respond to keyboard events */
+/* respond to keyboard events */
 void keyboard(unsigned char key, int x, int y)
 {
-float rotx, roty;
-static int lighton = 1;
+	float rotx, roty;
+	static int lighton = 1;
 
 	switch (key) {
 		case 27:
@@ -735,11 +736,11 @@ static int lighton = 1;
 			rotx = (mvx / 180.0 * 3.141592);
 			roty = (mvy / 180.0 * 3.141592);
 			vpx -= sin(roty) * 0.3;
-		// turn off y motion so you can't fly
+			// turn off y motion so you can't fly
 			if (flycontrol == 1)
 				vpy += sin(rotx) * 0.3;
 			vpz += cos(roty) * 0.3;
-	 collisionResponse();
+	 		collisionResponse();
 			glutPostRedisplay();
 			break;
 		case 's':		// backward motion
@@ -749,11 +750,11 @@ static int lighton = 1;
 			rotx = (mvx / 180.0 * 3.141592);
 			roty = (mvy / 180.0 * 3.141592);
 			vpx += sin(roty) * 0.3;
-		// turn off y motion so you can't fly
+			// turn off y motion so you can't fly
 			if (flycontrol == 1)
 				vpy -= sin(rotx) * 0.3;
 			vpz -= cos(roty) * 0.3;
-	 collisionResponse();
+	 		collisionResponse();
 			glutPostRedisplay();
 			break;
 		case 'a':		// strafe left motion
@@ -763,7 +764,7 @@ static int lighton = 1;
 			roty = (mvy / 180.0 * 3.141592);
 			vpx += cos(roty) * 0.3;
 			vpz += sin(roty) * 0.3;
-	 collisionResponse();
+	 		collisionResponse();
 			glutPostRedisplay();
 			break;
 		case 'd':		// strafe right motion
@@ -773,7 +774,7 @@ static int lighton = 1;
 			roty = (mvy / 180.0 * 3.141592);
 			vpx -= cos(roty) * 0.3;
 			vpz -= sin(roty) * 0.3;
-	 collisionResponse();
+	 		collisionResponse();
 			glutPostRedisplay();
 			break;
 		case 'f':		// toggle flying controls
@@ -788,6 +789,9 @@ static int lighton = 1;
 			if (displayMap > 2)
 				displayMap = 0;
 			break;
+		case 'g':
+			usegravity = !usegravity;
+			break;
 		case '0':		// toggle viewpoint motion, 0=on, 1=off
 			if (fixedVP == 0)
 				fixedVP = 1;
@@ -797,13 +801,12 @@ static int lighton = 1;
 	}
 }
 
-	/* load a texture from a file */
-	/* not currently used */
+/* load a texture from a file */
+/* not currently used */
 void loadTexture() {
-FILE *fp;
-int  i, j;
-int  red, green, blue;
-
+	FILE *fp;
+	int  i, j;
+	int  red, green, blue;
 	if ((fp = fopen("image.txt", "r")) == 0) {
 		printf("Error, failed to find the file named image.txt.\n");
 		exit(0);
@@ -835,14 +838,14 @@ int  red, green, blue;
 	fclose(fp);
 }
 
-	/* responds to mouse movement when a button is pressed */
+/* responds to mouse movement when a button is pressed */
 void motion(int x, int y) {
 	/* update current mouse movement but don't use to change the viewpoint*/
 	oldx = x;
 	oldy = y;
 }
 
-	/* responds to mouse movement when a button is not pressed */
+/* responds to mouse movement when a button is not pressed */
 void passivemotion(int x, int y) {
 	mvx += (float) y - oldy;
 	mvy += (float) x - oldx;
@@ -853,9 +856,9 @@ void passivemotion(int x, int y) {
 
 
 
-	/* initilize graphics information and mob data structure */
+/* initilize graphics information and mob data structure */
 void graphicsInit(int *argc, char **argv) {
-int i, fullscreen;
+	int i, fullscreen;
 	/* set GL window information */
 	glutInit(argc, argv);
 	glutInitDisplayMode (GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
@@ -863,6 +866,8 @@ int i, fullscreen;
 	/* parse command line args */
 	fullscreen = 0;
 	for(i=1; i<*argc; i++) {
+		if (strcmp(argv[i], "-nofly") == 0)
+			flycontrol = 0;
 		if (strcmp(argv[i],"-full") == 0)
 			fullscreen = 1;
 		if (strcmp(argv[i],"-drawall") == 0)
@@ -891,8 +896,8 @@ int i, fullscreen;
 
 	init();
 
-/* not used at the moment */
-//   loadTexture();
+	/* not used at the moment */
+	//   loadTexture();
 
 	/* attach functions to GL events */
 	glutReshapeFunc (reshape);
@@ -915,11 +920,11 @@ int i, fullscreen;
 
 	/* set the size of the sky */
 	if (WORLDX > WORLDY)
-		 skySize = (float) WORLDX;
+		skySize = (float) WORLDX;
 	else
-		 skySize = (float) WORLDY;
+		skySize = (float) WORLDY;
 	if (WORLDZ > skySize)
-		 skySize = (float) WORLDZ;
+		skySize = (float) WORLDZ;
 	skySize *= 2.0;
 }
 
@@ -927,26 +932,26 @@ int i, fullscreen;
 void draw2Dline(int x1, int y1, int x2, int y2, int lineWidth) {
 	glLineWidth(lineWidth);
 	glBegin(GL_LINES);
-		glVertex2i(x1, y1);
-		glVertex2i(x2, y2);
+	glVertex2i(x1, y1);
+	glVertex2i(x2, y2);
 	glEnd();
 	glLineWidth(1);
 }
 
 void draw2Dbox(int x1, int y1, int x2, int y2) {
 	glBegin(GL_QUADS);
-		glVertex2i(x1, y1);
-		glVertex2i(x1, y2);
-		glVertex2i(x2, y2);
-		glVertex2i(x2, y1);
+	glVertex2i(x1, y1);
+	glVertex2i(x1, y2);
+	glVertex2i(x2, y2);
+	glVertex2i(x2, y1);
 	glEnd();
 }
 
 void  draw2Dtriangle(int x1, int y1, int x2, int y2, int x3, int y3) {
 	glBegin(GL_TRIANGLES);
-		glVertex2i(x1, y1);
-		glVertex2i(x2, y2);
-		glVertex2i(x3, y3);
+	glVertex2i(x1, y1);
+	glVertex2i(x2, y2);
+	glVertex2i(x3, y3);
 	glEnd();
 }
 
@@ -957,7 +962,7 @@ void  set2Dcolour(float colourv[]) {
 
 
 
-	/* Functions for user defined colours */
+/* id, ambred, ambgreen, amblue ambalpha, difred difgreen difblue, difalpha */
 int setUserColour(int id, GLfloat ambRed, GLfloat ambGreen, GLfloat ambBlue,
   GLfloat ambAlpha, GLfloat difRed, GLfloat difGreen, GLfloat difBlue,
   GLfloat difAlpha) {
