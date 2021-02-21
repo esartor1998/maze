@@ -8,7 +8,7 @@
 #include <string.h>
 #include <math.h>
 #include <stdbool.h>
-
+#include <float.h>
 #include "graphics.h"
 
 GLubyte world[WORLDX][WORLDY][WORLDZ];
@@ -103,6 +103,7 @@ GLfloat uDifColour[NUMBERCOLOURS][4];
 int uColourUsed[NUMBERCOLOURS];
 
 bool usegravity = true;
+bool collisions = true;
 /* functions draw 2D images */
 void  draw2Dline(int, int, int, int, int);
 void  draw2Dbox(int, int, int, int);
@@ -399,6 +400,9 @@ void setObjectColour(int colourID) {
 	GLfloat dyellow[]   = {0.5, 0.5, 0.0, 1.0};
 	GLfloat dpurple[]   = {0.5, 0.0, 0.5, 1.0};
 	GLfloat dorange[]   = {0.5, 0.32, 0.0, 1.0};
+	GLfloat brown[]     = {0.5, 0.37, 0.05, 1.0}; //?
+	GLfloat grey[]      = {0.5, 0.5, 0.5, 1.0};
+
 
 	/* system defined colours are numbers 1 to 8 */
 	/* user defined colours are 9-99 */
@@ -431,7 +435,16 @@ void setObjectColour(int colourID) {
 	else if (colourID == 8) { 
 		glMaterialfv(GL_FRONT, GL_AMBIENT, dyellow);
 		glMaterialfv(GL_FRONT, GL_DIFFUSE, yellow);
-	} else {
+	}
+	else if (colourID == 9) {
+		glMaterialfv(GL_FRONT, GL_AMBIENT, brown);
+		glMaterialfv(GL_FRONT, GL_DIFFUSE, brown);
+	}
+	else if (colourID == 10) {
+		glMaterialfv(GL_FRONT, GL_AMBIENT, grey);
+		glMaterialfv(GL_FRONT, GL_DIFFUSE, grey);
+	}
+		else {
 		/* user define colour */
 		if (uColourUsed[ colourID ] != 1) {
 			printf("ERROR, attempt to access colour which is not allocated.\n");
@@ -682,9 +695,14 @@ void reshape(int w, int h)
 void keyboard(unsigned char key, int x, int y)
 {
 	float rotx, roty;
+	float a, b, c = 0.0;
 	static int lighton = 1;
 
 	switch (key) {
+		case 'p':
+			getViewPosition(&a, &b, &c);
+			printf("viewpos: %d %d %d\n", (int)a,(int)b,(int)c);
+			break;
 		case 27:
 		case 'q':
 			exit(0);
@@ -729,6 +747,7 @@ void keyboard(unsigned char key, int x, int y)
 			init();
 			glutPostRedisplay();
 			break;
+		case 'W':
 		case 'w':		// forward motion
 			oldvpx = vpx;
 			oldvpy = vpy;
@@ -743,6 +762,7 @@ void keyboard(unsigned char key, int x, int y)
 	 		collisionResponse();
 			glutPostRedisplay();
 			break;
+		case 'S':
 		case 's':		// backward motion
 			oldvpx = vpx;
 			oldvpy = vpy;
@@ -757,6 +777,7 @@ void keyboard(unsigned char key, int x, int y)
 	 		collisionResponse();
 			glutPostRedisplay();
 			break;
+		case 'A':
 		case 'a':		// strafe left motion
 			oldvpx = vpx;
 			oldvpy = vpy;
@@ -767,6 +788,7 @@ void keyboard(unsigned char key, int x, int y)
 	 		collisionResponse();
 			glutPostRedisplay();
 			break;
+		case 'D':
 		case 'd':		// strafe right motion
 			oldvpx = vpx;
 			oldvpy = vpy;
@@ -780,6 +802,9 @@ void keyboard(unsigned char key, int x, int y)
 		case 'f':		// toggle flying controls
 			if (flycontrol == 0) flycontrol = 1;
 			else flycontrol = 0;
+			break;
+		case 'c':
+			collisions = !collisions;
 			break;
 		case ' ':		// toggle space flag
 			space = 1;
