@@ -573,121 +573,121 @@ void drawCube(int i, int j, int k) {
 		// side 1
    glNormal3f(1.0, 0.0, 0.0);
    glBegin(GL_TRIANGLES);
-      glTexCoord2f(0.0 + umin, 0.0 + vmax);
-      glVertex3f(0.5, 0.5, 0.5);
-      glTexCoord2f(1.0 + umax, 1.0 + vmin);
-      glVertex3f(0.5, -0.5, -0.5);
-      glTexCoord2f(0.0 + umin, 1.0 + vmin);
-      glVertex3f(0.5, -0.5, 0.5);
+	  glTexCoord2f(0.0 + umin, 0.0 + vmax);
+	  glVertex3f(0.5, 0.5, 0.5);
+	  glTexCoord2f(1.0 + umax, 1.0 + vmin);
+	  glVertex3f(0.5, -0.5, -0.5);
+	  glTexCoord2f(0.0 + umin, 1.0 + vmin);
+	  glVertex3f(0.5, -0.5, 0.5);
    glEnd();
 
    glBegin(GL_TRIANGLES);
-      glTexCoord2f(0.0 + umin, 0.0 + vmax);
-      glVertex3f(0.5, 0.5, 0.5);
-      glTexCoord2f(1.0 + umax, 0.0 + vmax);
-      glVertex3f(0.5, 0.5, -0.5);
-      glTexCoord2f(1.0 + umax, 1.0 + vmin);
-      glVertex3f(0.5, -0.5, -0.5);
+	  glTexCoord2f(0.0 + umin, 0.0 + vmax);
+	  glVertex3f(0.5, 0.5, 0.5);
+	  glTexCoord2f(1.0 + umax, 0.0 + vmax);
+	  glVertex3f(0.5, 0.5, -0.5);
+	  glTexCoord2f(1.0 + umax, 1.0 + vmin);
+	  glVertex3f(0.5, -0.5, -0.5);
    glEnd();
 
 		// side 2
    glNormal3f(0.0, 0.0, 1.0);
    glBegin(GL_TRIANGLES);
-      glTexCoord2f(0.0 + umin, 0.0 + vmax);
-      glVertex3f(-0.5, 0.5, 0.5);
-      glTexCoord2f(1.0 + umax, 1.0 + vmin);
-      glVertex3f(0.5, -0.5, 0.5);
-      glTexCoord2f(0.0 + umin, 1.0 + vmin);
-      glVertex3f(-0.5, -0.5, 0.5);
+	  glTexCoord2f(0.0 + umin, 0.0 + vmax);
+	  glVertex3f(-0.5, 0.5, 0.5);
+	  glTexCoord2f(1.0 + umax, 1.0 + vmin);
+	  glVertex3f(0.5, -0.5, 0.5);
+	  glTexCoord2f(0.0 + umin, 1.0 + vmin);
+	  glVertex3f(-0.5, -0.5, 0.5);
    glEnd();
 
    glBegin(GL_TRIANGLES);
-      glTexCoord2f(0.0 + umin, 0.0 + vmax);
-      glVertex3f(-0.5, 0.5, 0.5);
-      glTexCoord2f(1.0 + umax, 0.0 + vmax);
-      glVertex3f(0.5, 0.5, 0.5);
-      glTexCoord2f(1.0 + umax, 1.0 + vmin);
-      glVertex3f(0.5, -0.5, 0.5);
+	  glTexCoord2f(0.0 + umin, 0.0 + vmax);
+	  glVertex3f(-0.5, 0.5, 0.5);
+	  glTexCoord2f(1.0 + umax, 0.0 + vmax);
+	  glVertex3f(0.5, 0.5, 0.5);
+	  glTexCoord2f(1.0 + umax, 1.0 + vmin);
+	  glVertex3f(0.5, -0.5, 0.5);
    glEnd();
 
 		// side 3
    glNormal3f(-1.0, 0.0, 0.0);
    glBegin(GL_TRIANGLES);
-      glTexCoord2f(0.0 + umin, 0.0 + vmax);
-      glVertex3f(-0.5, 0.5, -0.5);
-      glTexCoord2f(1.0 + umax, 1.0 + vmin);
-      glVertex3f(-0.5, -0.5, 0.5);
-      glTexCoord2f(0.0 + umin, 1.0 + vmin);
-      glVertex3f(-0.5, -0.5, -0.5);
+	  glTexCoord2f(0.0 + umin, 0.0 + vmax);
+	  glVertex3f(-0.5, 0.5, -0.5);
+	  glTexCoord2f(1.0 + umax, 1.0 + vmin);
+	  glVertex3f(-0.5, -0.5, 0.5);
+	  glTexCoord2f(0.0 + umin, 1.0 + vmin);
+	  glVertex3f(-0.5, -0.5, -0.5);
    glEnd();
 
    glBegin(GL_TRIANGLES);
-      glTexCoord2f(0.0 + umin, 0.0 + vmax);
-      glVertex3f(-0.5, 0.5, -0.5);
-      glTexCoord2f(1.0 + umax, 0.0 + vmax);
-      glVertex3f(-0.5, 0.5, 0.5);
-      glTexCoord2f(1.0 + umax, 1.0 + vmin);
-      glVertex3f(-0.5, -0.5, 0.5);
+	  glTexCoord2f(0.0 + umin, 0.0 + vmax);
+	  glVertex3f(-0.5, 0.5, -0.5);
+	  glTexCoord2f(1.0 + umax, 0.0 + vmax);
+	  glVertex3f(-0.5, 0.5, 0.5);
+	  glTexCoord2f(1.0 + umax, 1.0 + vmin);
+	  glVertex3f(-0.5, -0.5, 0.5);
    glEnd();
 
 		// side 4
    glNormal3f(0.0, 0.0, -1.0);
    glBegin(GL_TRIANGLES);
-      glTexCoord2f(0.0 + umin, 0.0 + vmax);
-      glVertex3f(0.5, 0.5, -0.5);
-      glTexCoord2f(1.0 + umax, 1.0 + vmin);
-      glVertex3f(-0.5, -0.5, -0.5);
-      glTexCoord2f(0.0 + umin, 1.0 + vmin);
-      glVertex3f(0.5, -0.5, -0.5);
+	  glTexCoord2f(0.0 + umin, 0.0 + vmax);
+	  glVertex3f(0.5, 0.5, -0.5);
+	  glTexCoord2f(1.0 + umax, 1.0 + vmin);
+	  glVertex3f(-0.5, -0.5, -0.5);
+	  glTexCoord2f(0.0 + umin, 1.0 + vmin);
+	  glVertex3f(0.5, -0.5, -0.5);
    glEnd();
 
    glBegin(GL_TRIANGLES);
-      glTexCoord2f(0.0 + umin, 0.0 + vmax);
-      glVertex3f(0.5, 0.5, -0.5);
-      glTexCoord2f(1.0 + umax, 0.0 + vmax);
-      glVertex3f(-0.5, 0.5, -0.5);
-      glTexCoord2f(1.0 + umax, 1.0 + vmin);
-      glVertex3f(-0.5, -0.5, -0.5);
+	  glTexCoord2f(0.0 + umin, 0.0 + vmax);
+	  glVertex3f(0.5, 0.5, -0.5);
+	  glTexCoord2f(1.0 + umax, 0.0 + vmax);
+	  glVertex3f(-0.5, 0.5, -0.5);
+	  glTexCoord2f(1.0 + umax, 1.0 + vmin);
+	  glVertex3f(-0.5, -0.5, -0.5);
    glEnd();
 
 		// side 5 - top
    glNormal3f(0.0, 1.0, 0.0);
    glBegin(GL_TRIANGLES);
-      glTexCoord2f(0.0 + umin, 0.0 + vmax);
-      glVertex3f(-0.5, 0.5, -0.5);
-      glTexCoord2f(1.0 + umax, 1.0 + vmin);
-      glVertex3f(0.5, 0.5, 0.5);
-      glTexCoord2f(0.0 + umin, 1.0 + vmin);
-      glVertex3f(-0.5, 0.5, 0.5);
+	  glTexCoord2f(0.0 + umin, 0.0 + vmax);
+	  glVertex3f(-0.5, 0.5, -0.5);
+	  glTexCoord2f(1.0 + umax, 1.0 + vmin);
+	  glVertex3f(0.5, 0.5, 0.5);
+	  glTexCoord2f(0.0 + umin, 1.0 + vmin);
+	  glVertex3f(-0.5, 0.5, 0.5);
    glEnd();
 
    glBegin(GL_TRIANGLES);
-      glTexCoord2f(0.0 + umin, 0.0 + vmax);
-      glVertex3f(-0.5, 0.5, -0.5);
-      glTexCoord2f(1.0 + umax, 0.0 + vmax);
-      glVertex3f(0.5, 0.5, -0.5);
-      glTexCoord2f(1.0 + umax, 1.0 + vmin);
-      glVertex3f(0.5, 0.5, 0.5);
+	  glTexCoord2f(0.0 + umin, 0.0 + vmax);
+	  glVertex3f(-0.5, 0.5, -0.5);
+	  glTexCoord2f(1.0 + umax, 0.0 + vmax);
+	  glVertex3f(0.5, 0.5, -0.5);
+	  glTexCoord2f(1.0 + umax, 1.0 + vmin);
+	  glVertex3f(0.5, 0.5, 0.5);
    glEnd();
 
 		// side 6 - bottom
    glNormal3f(0.0, -1.0, 0.0);
    glBegin(GL_TRIANGLES);
-      glTexCoord2f(0.0 + umin, 0.0 + vmax);
-      glVertex3f(-0.5, -0.5, 0.5);
-      glTexCoord2f(1.0 + umax, 1.0 + vmin);
-      glVertex3f(0.5, -0.5, -0.5);
-      glTexCoord2f(0.0 + umin, 1.0 + vmin);
-      glVertex3f(-0.5, -0.5, -0.5);
+	  glTexCoord2f(0.0 + umin, 0.0 + vmax);
+	  glVertex3f(-0.5, -0.5, 0.5);
+	  glTexCoord2f(1.0 + umax, 1.0 + vmin);
+	  glVertex3f(0.5, -0.5, -0.5);
+	  glTexCoord2f(0.0 + umin, 1.0 + vmin);
+	  glVertex3f(-0.5, -0.5, -0.5);
    glEnd();
 
    glBegin(GL_TRIANGLES);
-      glTexCoord2f(0.0 + umin, 0.0 + vmax);
-      glVertex3f(-0.5, -0.5, 0.5);
-      glTexCoord2f(1.0 + umax, 0.0 + vmax);
-      glVertex3f(0.5, -0.5, 0.5);
-      glTexCoord2f(1.0 + umax, 1.0 + vmin);
-      glVertex3f(0.5, -0.5, -0.5);
+	  glTexCoord2f(0.0 + umin, 0.0 + vmax);
+	  glVertex3f(-0.5, -0.5, 0.5);
+	  glTexCoord2f(1.0 + umax, 0.0 + vmax);
+	  glVertex3f(0.5, -0.5, 0.5);
+	  glTexCoord2f(1.0 + umax, 1.0 + vmin);
+	  glVertex3f(0.5, -0.5, -0.5);
    glEnd();
 
    unsetObjectTexture(world[i][j][k]);
@@ -799,48 +799,48 @@ void display (void)
 		/* draw mesh objects */
    for(i=0; i<MAXMESH; i++ ) {
 		/* if mesh instantiated the draw */
-      if((meshUsed[i]  == 1) && (userMesh[i].drawMesh == 1)) {
+	  if((meshUsed[i]  == 1) && (userMesh[i].drawMesh == 1)) {
 		/* for each user instantiated mesh, draw in the world */
-         glPushMatrix();
-         glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, white);
-         glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, white);
+		 glPushMatrix();
+		 glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, white);
+		 glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, white);
 
 
-         glEnableClientState(GL_VERTEX_ARRAY);
-         if (meshobj[1].ncount > 1)
-            glEnableClientState(GL_NORMAL_ARRAY);
-         if (meshobj[1].tcount > 1)
-            glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+		 glEnableClientState(GL_VERTEX_ARRAY);
+		 if (meshobj[1].ncount > 1)
+			glEnableClientState(GL_NORMAL_ARRAY);
+		 if (meshobj[1].tcount > 1)
+			glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 
-         glTranslatef(userMesh[i].xpos, userMesh[i].ypos, userMesh[i].zpos);
-         glRotatef(userMesh[i].xrot, 1.0, 0.0, 0.0);
-         glRotatef(userMesh[i].yrot, 0.0, 1.0, 0.0);
-         glRotatef(userMesh[i].zrot, 0.0, 0.0, 1.0);
-         glScalef(userMesh[i].scale, userMesh[i].scale, userMesh[i].scale);
+		 glTranslatef(userMesh[i].xpos, userMesh[i].ypos, userMesh[i].zpos);
+		 glRotatef(userMesh[i].xrot, 1.0, 0.0, 0.0);
+		 glRotatef(userMesh[i].yrot, 0.0, 1.0, 0.0);
+		 glRotatef(userMesh[i].zrot, 0.0, 0.0, 1.0);
+		 glScalef(userMesh[i].scale, userMesh[i].scale, userMesh[i].scale);
 
-         meshNumber = userMesh[i].meshNumber;
-         glVertexPointer(3, GL_FLOAT, 0, meshobj[meshNumber].svdata);
+		 meshNumber = userMesh[i].meshNumber;
+		 glVertexPointer(3, GL_FLOAT, 0, meshobj[meshNumber].svdata);
 
-         if (meshobj[0].ncount > 1)
-            glNormalPointer(GL_FLOAT, 0, meshobj[meshNumber].sndata);
+		 if (meshobj[0].ncount > 1)
+			glNormalPointer(GL_FLOAT, 0, meshobj[meshNumber].sndata);
 
-         if (meshobj[0].tcount > 1) {
-            glTexCoordPointer(2, GL_FLOAT, 0, meshobj[meshNumber].stdata);
-            glEnable(GL_TEXTURE_2D);
-            glBindTexture(GL_TEXTURE_2D, meshtextureID[meshNumber]);
-         }
+		 if (meshobj[0].tcount > 1) {
+			glTexCoordPointer(2, GL_FLOAT, 0, meshobj[meshNumber].stdata);
+			glEnable(GL_TEXTURE_2D);
+			glBindTexture(GL_TEXTURE_2D, meshtextureID[meshNumber]);
+		 }
 
-         glDrawArrays(GL_TRIANGLES, 0, meshobj[meshNumber].icount * 3);
+		 glDrawArrays(GL_TRIANGLES, 0, meshobj[meshNumber].icount * 3);
 
-         glDisableClientState(GL_VERTEX_ARRAY);
-         if (meshobj[0].ncount > 1)
-            glDisableClientState(GL_NORMAL_ARRAY);
-         if (meshobj[0].tcount > 1) {
-            glDisable(GL_TEXTURE_2D);
-            glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-         }
-         glPopMatrix();
-      }  
+		 glDisableClientState(GL_VERTEX_ARRAY);
+		 if (meshobj[0].ncount > 1)
+			glDisableClientState(GL_NORMAL_ARRAY);
+		 if (meshobj[0].tcount > 1) {
+			glDisable(GL_TEXTURE_2D);
+			glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+		 }
+		 glPopMatrix();
+	  }  
    }
 
 
@@ -1099,7 +1099,7 @@ void keyboard(unsigned char key, int x, int y)
 }
 	/* load mesh from obj file */
 void loadMesh() {
-        // structures directory operations and reading files
+		// structures directory operations and reading files
 DIR *dp;
 struct dirent * fname;
 	// obj file name
@@ -1122,33 +1122,33 @@ int mNumber;
 	// model count
    count = 0;
    while((fname = readdir(dp)) != NULL) {
-      length = strlen(fname->d_name);
-      strcpy(objName, fname->d_name);
+	  length = strlen(fname->d_name);
+	  strcpy(objName, fname->d_name);
 		// file needes to be at least five characters long, e.g. x.obj
 		// suffix must be .obj or .OBJ
-      if ((length > 4)
-            && (strncmp(objName, "._", 2) != 0) 
-            && ((strcmp(&(objName[length-4]), ".obj") == 0)
-            || (strcmp(&(objName[length-4]), ".OBJ") == 0))  ) {
+	  if ((length > 4)
+			&& (strncmp(objName, "._", 2) != 0) 
+			&& ((strcmp(&(objName[length-4]), ".obj") == 0)
+			|| (strcmp(&(objName[length-4]), ".OBJ") == 0))  ) {
 		// mesh file found, name stored in fname->d_name
 		// create path and filename in pathName
-         pathName[0] = '\0';
-         strcpy(pathName, "./models/");
-         strcat(pathName, objName);
+		 pathName[0] = '\0';
+		 strcpy(pathName, "./models/");
+		 strcat(pathName, objName);
 
 		// extract mesh number from file name
-         ptr = strchr(objName, '.');
-         *ptr = '\0';
-         sscanf(objName, "%d", &mNumber);
+		 ptr = strchr(objName, '.');
+		 *ptr = '\0';
+		 sscanf(objName, "%d", &mNumber);
 
 		// load mesh data from obj file
-         retValue = readObjFile(pathName, &(meshobj[mNumber]));
-         if (retValue == 1) {
-            printf("ERROR, failed to load mesh, %s\n", pathName);
-         }
-         count++;
+		 retValue = readObjFile(pathName, &(meshobj[mNumber]));
+		 if (retValue == 1) {
+			printf("ERROR, failed to load mesh, %s\n", pathName);
+		 }
+		 count++;
 
-      }
+	  }
    }  // while readdir
 
    closedir(dp);
@@ -1197,131 +1197,131 @@ GLubyte  *timage;
 		// either .ppm or .PPM
    dp = opendir(dirname);
    while((fname = readdir(dp)) != NULL) {
-      length = strlen(fname->d_name);
-      strcpy(ppmName, fname->d_name);
+	  length = strlen(fname->d_name);
+	  strcpy(ppmName, fname->d_name);
 		// file needes to be at least five characters long, e.g. x.ppm
 		// suffix must be .ppm or .PPM
-      if ((length > 4)
-            && (strncmp(ppmName, "._", 2) != 0) 
-            && ((strcmp(&(ppmName[length-4]), ".ppm") == 0)
-            || (strcmp(&(ppmName[length-4]), ".PPM") == 0))  ) {
+	  if ((length > 4)
+			&& (strncmp(ppmName, "._", 2) != 0) 
+			&& ((strcmp(&(ppmName[length-4]), ".ppm") == 0)
+			|| (strcmp(&(ppmName[length-4]), ".PPM") == 0))  ) {
 		// texture file found, name stored in fname->d_name
 		// create path and filename in pathName
-         pathName[0] = '\0';
-         strcpy(pathName, dirname);
-         strcat(pathName, ppmName);
+		 pathName[0] = '\0';
+		 strcpy(pathName, dirname);
+		 strcat(pathName, ppmName);
 
 		// open texture file and load texture
-         if ((fp = fopen(pathName, "r")) == 0) {
-            printf("Error, failed to find the file named %s.\n", pathName);
-            exit(0);
-         } 
+		 if ((fp = fopen(pathName, "r")) == 0) {
+			printf("Error, failed to find the file named %s.\n", pathName);
+			exit(0);
+		 } 
 		// read header file type P3
-         fgets(line, 256, fp);
-         if ((strncmp(line, "P3", 2) != 0) && (strncmp(line, "P6", 2) != 0)) {
-             printf("File %s not P3 or P6 format ppm file\n", pathName);
-             exit(1);
-         }
-         if (strncmp(line, "P3", 2) == 0) 
-            binFile = 0; 
-         else
-            binFile = 1;
+		 fgets(line, 256, fp);
+		 if ((strncmp(line, "P3", 2) != 0) && (strncmp(line, "P6", 2) != 0)) {
+			 printf("File %s not P3 or P6 format ppm file\n", pathName);
+			 exit(1);
+		 }
+		 if (strncmp(line, "P3", 2) == 0) 
+			binFile = 0; 
+		 else
+			binFile = 1;
 
 		// read comment line
-         fgets(line, 256, fp);
+		 fgets(line, 256, fp);
 		// read past comment lines starting with #
-         while (line[0] == '#') fgets(line, 256, fp);
+		 while (line[0] == '#') fgets(line, 256, fp);
 		// read width, height, and depth of pixels
-         sscanf(line, "%d %d", &wd, &ht);
-         fgets(line, 256, fp);
-         if ((wd != ht) || (wd > TEXTURESIZE)) {
-            printf("Texture %s too large. Increase TEXTURESIZE to %d.\n", 
-               pathName, wd);
-            exit(1);
-         }
+		 sscanf(line, "%d %d", &wd, &ht);
+		 fgets(line, 256, fp);
+		 if ((wd != ht) || (wd > TEXTURESIZE)) {
+			printf("Texture %s too large. Increase TEXTURESIZE to %d.\n", 
+			   pathName, wd);
+			exit(1);
+		 }
 		// read past comment lines starting with #
-         while (line[0] == '#') fgets(line, 256, fp);
-         sscanf(line, "%d", &depth);
-         divisor = 1;
-         if (depth != 255) {
-            divisor = depth / 256;
-         }
+		 while (line[0] == '#') fgets(line, 256, fp);
+		 sscanf(line, "%d", &depth);
+		 divisor = 1;
+		 if (depth != 255) {
+			divisor = depth / 256;
+		 }
 
 		// set byte counter for image to zero
-         tcount = 0;
+		 tcount = 0;
 		// load texture data into image array
-         if (binFile ==0) {
+		 if (binFile ==0) {
 		// texture file
-            for(i=0; i<ht; i++) {
-               for(j=0; j<wd; j++) {
-                  fgets(line, 256, fp);
-                  sscanf(line, "%d", &red);
-                  fgets(line, 256, fp);
-                  sscanf(line, "%d", &green);
-                  fgets(line, 256, fp);
-                  sscanf(line, "%d", &blue);
+			for(i=0; i<ht; i++) {
+			   for(j=0; j<wd; j++) {
+				  fgets(line, 256, fp);
+				  sscanf(line, "%d", &red);
+				  fgets(line, 256, fp);
+				  sscanf(line, "%d", &green);
+				  fgets(line, 256, fp);
+				  sscanf(line, "%d", &blue);
 
-                  red /= divisor;
-                  blue /= divisor;
-                  green /= divisor;
+				  red /= divisor;
+				  blue /= divisor;
+				  green /= divisor;
 
-                  timage[tcount] = red;
-                  timage[tcount+ 1] = green;
-                  timage[tcount + 2] = blue;
-                  timage[tcount + 3] = 255;
+				  timage[tcount] = red;
+				  timage[tcount+ 1] = green;
+				  timage[tcount + 2] = blue;
+				  timage[tcount + 3] = 255;
 
-                  tcount+=4;
-               }
-            }
-         } else {
+				  tcount+=4;
+			   }
+			}
+		 } else {
 		// binary file
-            for(i=0; i<ht; i++) {
-               for(j=0; j<wd; j++) {
-                  fread(&red, sizeof(char), 1, fp);
-                  fread(&green, sizeof(char), 1, fp);
-                  fread(&blue, sizeof(char), 1, fp);
+			for(i=0; i<ht; i++) {
+			   for(j=0; j<wd; j++) {
+				  fread(&red, sizeof(char), 1, fp);
+				  fread(&green, sizeof(char), 1, fp);
+				  fread(&blue, sizeof(char), 1, fp);
 
-                  red /= divisor;
-                  blue /= divisor;
-                  green /= divisor;
+				  red /= divisor;
+				  blue /= divisor;
+				  green /= divisor;
 
-                  timage[tcount] = red;
-                  timage[tcount+ 1] = green;
-                  timage[tcount + 2] = blue;
-                  timage[tcount + 3] = 255;
+				  timage[tcount] = red;
+				  timage[tcount+ 1] = green;
+				  timage[tcount + 2] = blue;
+				  timage[tcount + 3] = 255;
 
-                  tcount+=4;
-               }
-            }
-         }
+				  tcount+=4;
+			   }
+			}
+		 }
 
-         fclose(fp);
+		 fclose(fp);
 
 		// extract texture number from file name
-         ptr = strchr(ppmName, '.');
-         *ptr = '\0';
-         sscanf(ppmName, "%d", &tNumber);
-         tUsed[tNumber] = 1;
+		 ptr = strchr(ppmName, '.');
+		 *ptr = '\0';
+		 sscanf(ppmName, "%d", &tNumber);
+		 tUsed[tNumber] = 1;
 
 		// create OpenGL texture
-         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-         glGenTextures(1, &(tID[tNumber]));
-         glBindTexture(GL_TEXTURE_2D, tID[tNumber]);
-         count++;
-         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		 glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+		 glGenTextures(1, &(tID[tNumber]));
+		 glBindTexture(GL_TEXTURE_2D, tID[tNumber]);
+		 count++;
+		 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 		// filtering of textures is turned off, 
-         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 //         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 //         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, wd, ht, 0, GL_RGBA,
-            GL_UNSIGNED_BYTE, timage);
-         glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		 glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, wd, ht, 0, GL_RGBA,
+			GL_UNSIGNED_BYTE, timage);
+		 glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 //         glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 
-      } // load a texture
+	  } // load a texture
 
    }  // while readdir
 
@@ -1393,14 +1393,14 @@ void graphicsInit(int *argc, char **argv) {
 
 		/* initialize all textures as empty == 0 */
    for (i=0; i<NUMBERTEXTURES; i++)
-      textureUsed[i] = 0;
+	  textureUsed[i] = 0;
 	/* initialize assigned textures to -1, unassigned */
 	/* initialize texture offsets to 0.0, no offset */
    for (i=0; i<NUMBERCOLOURS; i++) {
-      textureAssigned[i] = -1;
-      tOffset[i][0] = 0.0;
-      tOffset[i][1] = 0.0;
-    }
+	  textureAssigned[i] = -1;
+	  tOffset[i][0] = 0.0;
+	  tOffset[i][1] = 0.0;
+	}
 
 	/* load textures for cubes */
    strcpy(dirName, "./textures/");
@@ -1416,7 +1416,7 @@ void graphicsInit(int *argc, char **argv) {
 	/* initialize user mesh information */
 	/* set all user mesh as unusued == 0 */
    for(i=0; i<MAXMESH; i++)
-      meshUsed[i] = 0;
+	  meshUsed[i] = 0;
 
 
 	/* attach functions to GL events */
@@ -1537,12 +1537,12 @@ void getUserColour(int id, GLfloat *ambRed, GLfloat *ambGreen, GLfloat *ambBlue,
 	   is the number of the texture to attach to the colour */
 int setAssignedTexture(int colourid, int textureid) {
    if (colourid >= NUMBERCOLOURS) {
-      printf("ERROR, attempt to setTexture() and assign a texture to a colour number of %d which is greater than the maximum user colour number %d.\n", colourid, NUMBERCOLOURS-1);
-      return(1);
+	  printf("ERROR, attempt to setTexture() and assign a texture to a colour number of %d which is greater than the maximum user colour number %d.\n", colourid, NUMBERCOLOURS-1);
+	  return(1);
    }
    if (textureUsed[textureid] != 1) {
-      printf("ERROR, attempt to setTexture() with a texture id number of %d has not been assigned a texture.\n", textureid);
-      return(1);
+	  printf("ERROR, attempt to setTexture() with a texture id number of %d has not been assigned a texture.\n", textureid);
+	  return(1);
    }
 
 	/* set flag which indicates colour id has been defined by the user */
@@ -1571,16 +1571,16 @@ void setTextureOffset(int id, float uoffset, float voffset) {
 }
 
 	/* id is the user defined number for that instance of a mesh, the
-              same mesh can have different instances, each with its own
-              position, rotatio, scale */
+			  same mesh can have different instances, each with its own
+			  position, rotatio, scale */
 	/* meshNumber is the number of the loaded mesh to draw, it
-	      corresponds to the file number of the mesh in ~/models/ dir. */
+		  corresponds to the file number of the mesh in ~/models/ dir. */
 	/* (xpos, ypos, zpos) is the position of the mesh in the world */
 void setMeshID(int id, int meshNumber, float xpos, float ypos, float zpos) {
 
    if (id > MAXMESH-1) {
-      printf("ERROR, setMeshID(), the id must be less than %d\n", MAXMESH);
-      exit(1);
+	  printf("ERROR, setMeshID(), the id must be less than %d\n", MAXMESH);
+	  exit(1);
    }
 	// set that mesh id as active
    meshUsed[id] = 1;

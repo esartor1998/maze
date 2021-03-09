@@ -1,14 +1,14 @@
 struct meshStruct {
-        // vertices list
+	   // vertices list
    unsigned int vcount;
    float *vdata;
-        // textures list
+	   // textures list
    unsigned int tcount; 
    float *tdata;
-        // normals list
+	   // normals list
    unsigned int ncount;
    float *ndata;
-        // indices that reference vertices, textures, normals
+	   // indices that reference vertices, textures, normals
    unsigned int icount;
    unsigned int *vindex, *tindex, *nindex;
 

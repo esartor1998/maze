@@ -557,70 +557,70 @@ void joinRooms(struct coord points[9], struct coord dimensions[9], int r1_index,
  * Weight w should be in the range [0.0, 1.0]
  */
 float interpolate(float a0, float a1, float w) {
-    /* // You may want clamping by inserting:
-     * if (0.0 > w) return a0;
-     * if (1.0 < w) return a1;
-     */
-    return (a1 - a0) * w + a0;
-    /* // Use this cubic interpolation [[Smoothstep]] instead, for a smooth appearance:
-     * return (a1 - a0) * (3.0 - w * 2.0) * w * w + a0;
-     *
-     * // Use [[Smootherstep]] for an even smoother result with a second derivative equal to zero on boundaries:
-     * return (a1 - a0) * ((w * (w * 6.0 - 15.0) + 10.0) * w * w * w) + a0;
-     */
+	/* // You may want clamping by inserting:
+	 * if (0.0 > w) return a0;
+	 * if (1.0 < w) return a1;
+	 */
+	return (a1 - a0) * w + a0;
+	/* // Use this cubic interpolation [[Smoothstep]] instead, for a smooth appearance:
+	 * return (a1 - a0) * (3.0 - w * 2.0) * w * w + a0;
+	 *
+	 * // Use [[Smootherstep]] for an even smoother result with a second derivative equal to zero on boundaries:
+	 * return (a1 - a0) * ((w * (w * 6.0 - 15.0) + 10.0) * w * w * w) + a0;
+	 */
 }
 
 typedef struct {
-    float x, y;
+	float x, y;
 } vector2;
 
 /* Create random direction vector
  */
 vector2 randomGradient(int ix, int iy) {
-    // Random float. No precomputed gradients mean this works for any number of grid coordinates
-    float random = 2920.f * sin(ix * 21942.f + iy * 171324.f + 8912.f) * cos(ix * 23157.f * iy * 217832.f + 9758.f);
-    return (vector2) { .x = cos(random), .y = sin(random) };
+	// Random float. No precomputed gradients mean this works for any number of grid coordinates
+	float random = 2920.f * sin(ix * 21942.f + iy * 171324.f + 8912.f) * cos(ix * 23157.f * iy * 217832.f + 9758.f);
+	return (vector2) { .x = cos(random), .y = sin(random) };
 }
 
 // Computes the dot product of the distance and gradient vectors.
 float dotGridGradient(int ix, int iy, float x, float y) {
-    // Get gradient from integer coordinates
-    vector2 gradient = randomGradient(ix, iy);
+	// Get gradient from integer coordinates
+	vector2 gradient = randomGradient(ix, iy);
 
-    // Compute the distance vector
-    float dx = x - (float)ix;
-    float dy = y - (float)iy;
+	// Compute the distance vector
+	float dx = x - (float)ix;
+	float dy = y - (float)iy;
 
-    // Compute the dot-product
-    return (dx*gradient.x + dy*gradient.y);
+	// Compute the dot-product
+	return (dx*gradient.x + dy*gradient.y);
 }
 
 // Compute Perlin noise at coordinates x, y
 float perlin(float x, float y) {
-    // Determine grid cell coordinates
-    int x0 = (int)x;
-    int x1 = x0 + 1;
-    int y0 = (int)y;
-    int y1 = y0 + 1;
+	// Determine grid cell coordinates
+	int x0 = (int)x;
+	int x1 = x0 + 1;
+	int y0 = (int)y;
+	int y1 = y0 + 1;
 
-    // Determine interpolation weights
-    // Could also use higher order polynomial/s-curve here
-    float sx = x - (float)x0;
-    float sy = y - (float)y0;
+	// Determine interpolation weights
+	// Could also use higher order polynomial/s-curve here
+	float sx = x - (float)x0;
+	float sy = y - (float)y0;
 
-    // Interpolate between grid point gradients
-    float n0, n1, ix0, ix1, value;
+	// Interpolate between grid point gradients
+	float n0, n1, ix0, ix1, value;
 
-    n0 = dotGridGradient(x0, y0, x, y);
-    n1 = dotGridGradient(x1, y0, x, y);
-    ix0 = interpolate(n0, n1, sx);
+	n0 = dotGridGradient(x0, y0, x, y);
+	n1 = dotGridGradient(x1, y0, x, y);
+	ix0 = interpolate(n0, n1, sx);
 
-    n0 = dotGridGradient(x0, y1, x, y);
-    n1 = dotGridGradient(x1, y1, x, y);
-    ix1 = interpolate(n0, n1, sx);
+	n0 = dotGridGradient(x0, y1, x, y);
+	n1 = dotGridGradient(x1, y1, x, y);
+	ix1 = interpolate(n0, n1, sx);
 
-    value = interpolate(ix0, ix1, sy);
-    return value;
+	value = interpolate(ix0, ix1, sy);
+	return value;
 }
 
 int loadMaze(int which) { //which is experimental
@@ -853,12 +853,12 @@ void update() {
 		static GLfloat offset = 0.0;
 
 	/* offset counter for animated texture */
-      static float textureOffset = 0.0;
+	  static float textureOffset = 0.0;
 
 	/* scaling values for fish mesh */
-      static float fishScale = 1.0;
-      static int scaleCount = 0;
-      static GLfloat scaleOffset = 0.0;
+	  static float fishScale = 1.0;
+	  static int scaleCount = 0;
+	  static GLfloat scaleOffset = 0.0;
 
 		/* move mob 0 and rotate */
 		/* set mob 0 position */
@@ -908,25 +908,25 @@ void update() {
 		 createTube(1, 45.0, 30.0, 45.0, 50.0, 30.0, 50.0, 6);
 
 	/* move texture for lava effect */
-      textureOffset -= 0.01;
-      setTextureOffset(18, 0.0, textureOffset);
+	  textureOffset -= 0.01;
+	  setTextureOffset(18, 0.0, textureOffset);
 
 	/* make fish grow and shrink (scaling) */
-      if (scaleCount == 1) scaleOffset += 0.01;
-      else scaleOffset -= 0.01;
-      if (scaleOffset >= 0.5) scaleCount = 0;
-      if (scaleOffset <= 0.0) scaleCount = 1;
-      setScaleMesh(1, 0.5 + scaleOffset);
+	  if (scaleCount == 1) scaleOffset += 0.01;
+	  else scaleOffset -= 0.01;
+	  if (scaleOffset >= 0.5) scaleCount = 0;
+	  if (scaleOffset <= 0.0) scaleCount = 1;
+	  setScaleMesh(1, 0.5 + scaleOffset);
 
 	/* make cow with id == 2 appear and disappear */
 	/* use scaleCount as switch to flip draw/hide */
 	/* rotate cow while it is visible */
-      if (scaleCount == 0) {
-         drawMesh(2);
-         setRotateMesh(2, 0.0, 180.0 + scaleOffset * 100.0, 0.0);
-      } else {
-         hideMesh(2);
-      }
+	  if (scaleCount == 0) {
+		 drawMesh(2);
+		 setRotateMesh(2, 0.0, 180.0 + scaleOffset * 100.0, 0.0);
+	  } else {
+		 hideMesh(2);
+	  }
 
 	 	/* end testworld animation */
 
@@ -942,7 +942,7 @@ void update() {
 		int noncalverty = -(int)y;
 		int noncalvertz = -(int)z;
 		////printf("non-calvertpos %d %d %d\n", noncalvertx, noncalverty, noncalvertz);
-		bool hmm = false;
+		bool on_stairs = false;
 		if (floors[currfloor]->stairs[STAIRS_UP].x == noncalvertx) {
 			//printf("x match.u\n");
 			if (floors[currfloor]->stairs[STAIRS_UP].z == noncalvertz) {
@@ -954,7 +954,7 @@ void update() {
 						//printf("Trying to ascend to heaven: not allowed, due to furry.\nAlso up staircase on overworld, fix.\n");
 					} else {
 						currfloor -= 1;
-						hmm = true;
+						on_stairs = true;
 					}
 				}
 			}
@@ -967,11 +967,11 @@ void update() {
 					//printf("y-1 (maybe + 1?) matchd\n");
 					//printf("ok, loading downstairs\n");
 					currfloor += 1;
-					hmm = true;
+					on_stairs = true;
 				}
 			}
 		} //i've been wrong all alonG! could refactor! hope it works anyways though! ahha
-		if (hmm) {
+		if (on_stairs) {
 			if (!(floors[currfloor])) {
 				//printf("No deeper maze exists. creating one! Or, there has been some catastrophe\n");
 				genMaze();
@@ -983,7 +983,7 @@ void update() {
 							world[lx][ly][lz] = floors[currfloor]->world[lx][ly][lz];
 						}
 					}
-				} //it just occured to me that i can't set dimensions or points from here sooooo maybe they dont matter at all
+				}
 			}
 			//remember to calvertize (make negative) the positions first
 			////printf("okay hopefully? %f %f %f\n", -(float)floors[currfloor]->spawn.x,-(float)floors[currfloor]->spawn.y,-(float)floors[currfloor]->spawn.z);
@@ -1096,92 +1096,92 @@ int main(int argc, char** argv)
 		//no. he's creepy
 		
 	/* create sample player */
-      createPlayer(0, 52.0, 27.0, 52.0, 0.0);
+	  createPlayer(0, 52.0, 27.0, 52.0, 0.0);
 
 	/* texture examples */
 
 	/* create textured cube */
 	/* create user defined colour with an id number of 11 */
-      setUserColour(11, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+	  setUserColour(11, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
 	/* attach texture 22 to colour id 11 */
-      setAssignedTexture(11, 22);
+	  setAssignedTexture(11, 22);
 	/* place a cube in the world using colour id 11 which is texture 22 */
-      world[59][25][50] = 11;
+	  world[59][25][50] = 11;
 
 	/* create textured cube */
-      setUserColour(12, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-      setAssignedTexture(12, 27);
-      world[61][25][50] = 12;
+	  setUserColour(12, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+	  setAssignedTexture(12, 27);
+	  world[61][25][50] = 12;
 
 	/* create textured cube */
-      setUserColour(10, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-      setAssignedTexture(10, 26);
-      world[63][25][50] = 10;
+	  setUserColour(10, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+	  setAssignedTexture(10, 26);
+	  world[63][25][50] = 10;
 
 	/* create textured floor */
-      setUserColour(13, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-      setAssignedTexture(13, 8);
-      for (i=57; i<67; i++)
-         for (j=45; j<55; j++)
-            world[i][24][j] = 13;
+	  setUserColour(13, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+	  setAssignedTexture(13, 8);
+	  for (i=57; i<67; i++)
+		 for (j=45; j<55; j++)
+			world[i][24][j] = 13;
 
 	/* create textured wall */
-      setUserColour(14, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-      setAssignedTexture(14, 18);
-      for (i=57; i<67; i++)
-         for (j=0; j<4; j++)
-            world[i][24+j][45] = 14;
+	  setUserColour(14, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+	  setAssignedTexture(14, 18);
+	  for (i=57; i<67; i++)
+		 for (j=0; j<4; j++)
+			world[i][24+j][45] = 14;
 
 	/* create textured wall */
-      setUserColour(15, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-      setAssignedTexture(15, 42);
-      for (i=45; i<55; i++)
-         for (j=0; j<4; j++)
-            world[57][24+j][i] = 15;
+	  setUserColour(15, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+	  setAssignedTexture(15, 42);
+	  for (i=45; i<55; i++)
+		 for (j=0; j<4; j++)
+			world[57][24+j][i] = 15;
 
 		// two cubes using the same texture but one is offset
 		// cube with offset texture 33
-      setUserColour(16, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-      setAssignedTexture(16, 33);
-      world[65][25][50] = 16;
-      setTextureOffset(16, 0.5, 0.5);
+	  setUserColour(16, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+	  setAssignedTexture(16, 33);
+	  world[65][25][50] = 16;
+	  setTextureOffset(16, 0.5, 0.5);
 		// cube with non-offset texture 33
-      setUserColour(17, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-      setAssignedTexture(17, 33);
-      world[66][25][50] = 17;
+	  setUserColour(17, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+	  setAssignedTexture(17, 33);
+	  world[66][25][50] = 17;
 
 		// create some lava textures that will be animated
-      setUserColour(18, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-      setAssignedTexture(18, 24);
-      world[62][24][55] = 18;
-      world[63][24][55] = 18;
-      world[64][24][55] = 18;
-      world[62][24][56] = 18;
-      world[63][24][56] = 18;
-      world[64][24][56] = 18;
+	  setUserColour(18, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+	  setAssignedTexture(18, 24);
+	  world[62][24][55] = 18;
+	  world[63][24][55] = 18;
+	  world[64][24][55] = 18;
+	  world[62][24][56] = 18;
+	  world[63][24][56] = 18;
+	  world[64][24][56] = 18;
 
 		// draw cow mesh and rotate 45 degrees around the y axis
 		// game id = 0, cow mesh id == 0
-      setMeshID(0, 0, 48.0, 26.0, 50.0);
-      setRotateMesh(0, 0.0, 45.0, 0.0);
+	  setMeshID(0, 0, 48.0, 26.0, 50.0);
+	  setRotateMesh(0, 0.0, 45.0, 0.0);
 
 		// draw fish mesh and scale to half size (0.5)
 		// game id = 1, fish mesh id == 1
-      setMeshID(1, 1, 51.0, 28.0, 50.0);
-      setScaleMesh(1, 0.5);
+	  setMeshID(1, 1, 51.0, 28.0, 50.0);
+	  setScaleMesh(1, 0.5);
 
 		// draw cow mesh and rotate 45 degrees around the y axis
 		// game id = 2, cow mesh id == 0
-      setMeshID(2, 0, 59.0, 26.0, 47.0);
+	  setMeshID(2, 0, 59.0, 26.0, 47.0);
 
 		// draw bat
 		// game id = 3, bat mesh id == 2
-      setMeshID(3, 2, 61.0, 26.0, 47.0);
-      setScaleMesh(3, 0.5);
+	  setMeshID(3, 2, 61.0, 26.0, 47.0);
+	  setScaleMesh(3, 0.5);
 		// draw cactus
 		// game id = 4, cactus mesh id == 3
-      setMeshID(4, 3, 63.0, 26.0, 47.0);
-      setScaleMesh(4, 0.5);
+	  setMeshID(4, 3, 63.0, 26.0, 47.0);
+	  setScaleMesh(4, 0.5);
 
 
    } else {
