@@ -27,3 +27,14 @@ GLubyte world[WORLDX][WORLDY][WORLDZ];
 /* maximum number of user defined colours */
 #define NUMBERCOLOURS 100
 
+	/* maximum number of textures which can be loaded */
+#define NUMBERTEXTURES 100
+
+	/* maximum number of meshes which can be loaded from ~/models dir */
+#define NUMBERMESH 100
+
+	/* maximum number of mesh the user can instantiate at one time */
+#define MAXMESH 100
+
+	/* maximum texture width and height */
+#define TEXTURESIZE 256

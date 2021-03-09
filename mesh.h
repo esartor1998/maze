@@ -1,4 +1,3 @@
-
 struct meshStruct {
         // vertices list
    unsigned int vcount;
