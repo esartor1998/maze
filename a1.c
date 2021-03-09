@@ -493,7 +493,7 @@ void drawCorridor(struct coord a, int l, int w, int h, GLbyte colour) {
 
 void joinRooms(struct coord points[9], struct coord dimensions[9], int r1_index, int r2_index, const int w, const int h, GLbyte colour) {
 	int mid;
-	if (r2_index == r1_index + 3) { //mode 0 - z axis
+	if (r2_index == r1_index + 3) { //mode 0 - x*
 		mid = (points[r2_index].z - (points[r1_index].z + dimensions[r1_index].z)) / 2;
 		//draw the corridors from and to two rooms
 		createRoom(offsetPoint(points[r1_index], 0, 0, dimensions[r1_index].z), mid, w, h, colour);
@@ -501,11 +501,11 @@ void joinRooms(struct coord points[9], struct coord dimensions[9], int r1_index,
 		//draw the horizontal (connecting) corridor
 		/*since we can't draw right to left becuase i dont want to change anything,
 		we draw the corridor from the leftmost side first. love to just use abs but 🤷*/
-		if (points[r1_index].x < points[r2_index].x) { 
+		if (points[r1_index].x < points[r2_index].x) { //x+
 			////printf("todoroki %d\n", points[r2_index].x - points[r1_index].x); //w is passed as the l because its horizontal
 			createRoom(offsetPoint(points[r1_index], 0, 0, mid + dimensions[r1_index].z), w, points[r2_index].x - points[r1_index].x + w, h, colour); //TODO: + w in w dubious?
 			fillVolume(offsetPoint(points[r1_index], 1, 1, mid + dimensions[r1_index].z + 1), w - 1, points[r2_index].x - points[r1_index].x + w - 1, h - 1, 0);
-		} else{ //this one works
+		} else{ //x-
 			////printf("else %d\n", points[r1_index].x - points[r2_index].x);
 			createRoom(offsetPoint(points[r2_index], 0, 0, -mid), w, points[r1_index].x - points[r2_index].x + w, h, colour);
 			fillVolume(offsetPoint(points[r2_index], 1, 1, -mid + 1), w - 1, points[r1_index].x - points[r2_index].x + w - 1, h - 1, 0);
@@ -515,21 +515,19 @@ void joinRooms(struct coord points[9], struct coord dimensions[9], int r1_index,
 		fillVolume(offsetPoint(points[r2_index], 1, 1, -mid + 1), mid + w - 1, w - 1, h - 1, 0);
 		////printf("%d/%d's corridor pair generated.\n", r1_index, r2_index);
 	}
-	else { //mode 1 - x axis
+	else { //mode 1 - z*
 		mid = ((points[r2_index].x - (points[r1_index].x + dimensions[r1_index].x)) / 2) - 1;
 		bool odd = !(mid % 2);
 		//draw the corridors from and to two rooms
 		createRoom(offsetPoint(points[r1_index], dimensions[r1_index].x, 0, 0), w, mid, h, colour); //offset wrong?
 		createRoom(offsetPoint(points[r2_index], -mid, 0,  0), w, mid, h, colour);
 		//draw the horizontal (connecting) corridor
-		/*since we can't draw right to left becuase i dont want to change anything,
-		we draw the corridor from the leftmost side first. love to just use abs but 🤷*/
-		if (points[r1_index].z < points[r2_index].z) { 
+		if (points[r1_index].z < points[r2_index].z) { //z+?
 			////printf("todoroki %d\n", points[r2_index].z - points[r1_index].z); //w is passed as the l because its horizontal
 			createRoom(offsetPoint(points[r1_index], mid + dimensions[r1_index].x, 0, 0), points[r2_index].z - points[r1_index].z + w, w, h, colour); //TODO: + w in w dubious?
 			fillVolume(offsetPoint(points[r1_index], mid + dimensions[r1_index].x + 1, 1, 1), points[r2_index].z - points[r1_index].z + w - 1, w - 1, h - 1, 0);
 		} 
-		else{ //this one works
+		else{ //z-
 			////printf("else %d\n", points[r1_index].z - points[r2_index].z);
 			createRoom(offsetPoint(points[r2_index], -(mid + w), 0, 0), points[r1_index].z - points[r2_index].z + w, w, h, colour);
 			fillVolume(offsetPoint(points[r2_index], -(mid + w) + 1, 1, 1), points[r1_index].z - points[r2_index].z + w - 1, w - 1, h - 1, 0);
@@ -1090,10 +1088,10 @@ int main(int argc, char** argv)
 				for(int deep = 0; deep < 3; deep++) {
 					world[x][(int)y+QTHEIGHT - deep][z] = elevation;
 				}
-				if(x == 50 && z == 50) {
-					stairslocation.x = x;
-					stairslocation.y = (int)y+QTHEIGHT;
-					stairslocation.z = z;
+				if(x == 50 && z == 50) { 
+					//someone told me you could do the following to assign structs:
+					stairslocation = (struct coord){x, (int)y+QTHEIGHT, z};
+					//totally blew my mind. didnt know it was possible.
 					world[x][(int)y+QTHEIGHT][z] = 10;
 				}
 			}
@@ -1123,8 +1121,6 @@ int main(int argc, char** argv)
 
 	/* starts the graphics processing loop */
 	/* code after this will not run until the program exits */
-	
-	fillVolume((struct coord){.x = 0, .y = 0, .z = 0}, 10, 10, 10, 1);
 	glutMainLoop();
 	return 0; 
 }
