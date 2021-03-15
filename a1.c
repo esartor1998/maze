@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include "graphics.h"
 
+//so many externs...
 extern GLubyte  world[WORLDX][WORLDY][WORLDZ];
 
 /* mouse function called by GLUT when a button is pressed or released */
@@ -50,8 +51,11 @@ extern void createTube(int, float, float, float, float, float, float, int);
 extern void hideTube(int);
 extern void showTube(int);
 
+/* x1 y1 x2 y2 */
 extern void  draw2Dline(int, int, int, int, int);
+/* x1 y1 x2 y2 */
 extern void  draw2Dbox(int, int, int, int);
+/* x1 y1 x2 y2 */
 extern void  draw2Dtriangle(int, int, int, int, int, int);
 extern void  set2Dcolour(float []);
 	/* texture functions */
@@ -59,6 +63,11 @@ extern int setAssignedTexture(int, int);
 extern void unsetAssignedTexture(int);
 extern int getAssignedTexture(int);
 extern void setTextureOffset(int, float, float);
+
+extern float getx(int);
+extern float gety(int);
+extern float getz(int);
+extern int getVisible(int);
 
 /* flag which is set to 1 when flying behaviour is desired */
 extern int flycontrol;
@@ -78,14 +87,16 @@ extern int screenWidth, screenHeight;
 extern int displayMap;
 /* flag indicates use of a fixed viewpoint */
 extern int fixedVP;
+/* flag toggles gravity */
 extern bool usegravity;
+/* flag toggles collision */
 extern bool collisions;
 /* frustum corner coordinates, used for visibility determination  */
 extern float corners[4][3];
 
 /* determine which cubes are visible e.g. in view frustum */
 extern void ExtractFrustum();
-extern void tree(float, float, float, float, float, float, int);
+extern void tree(float, float, float, float, float, float, int); //so nostalgic
 
 /* allows users to define colours */
 extern int setUserColour(int, GLfloat, GLfloat, GLfloat, GLfloat, GLfloat,
@@ -114,36 +125,69 @@ extern void hideMesh(int);
 #define STAIRS_DOWN 1
 #define MAX_ROOMS 100
 
-bool plsnocrash = false;
-float cloudoffset = 0.0;
-int framecount = 0;
-
-//utility function. rand should be seeded before this is called, please! if you do this then you're the nicest
-int getRandomNumber(int min, int max) {
-	return min + (rand() % (max - min + 1));
-}
-
 struct coord {
 	int x;
 	int y;
 	int z;
 }; //just to make working with this shit easier although i might not end up using it
 
-struct record {
+struct record { //this might need to store mobs too... and other things...
 	GLbyte world[WORLDX][WORLDY][WORLDZ];
 	struct coord spawn;
 	struct coord stairs[2]; //this is stored because the stairs hold special data + also need to be cross referenced from several scopes
+	//struct mob* mobs[MAXMESH]; //needs to be a pointer so that it can also be empty
 };
 
-//could make this infinite, but currently, i have no time. what a theme
-//struct record* floors = calloc(MAX_ROOMS, sizeof(struct record)); //could be a doublke pointer hah maybe that'd be better...
+const int map_offset = 5; //ATTN: 5 pixels?
+bool plsnocrash = false;
+time_t timings[100] = {0L}; //timings[0] will hold the clouds, [1] the mobs, then whatever else.
 struct record* floors[MAX_ROOMS] = {NULL}; //if only things were different... @dcalvert...
-int currfloor = 0;//global memory management for records.the first one will be the outside level,
+struct coord points[NUMROOMS];
+struct coord dimensions[NUMROOMS];
+struct coord random_things[NUMROOMS]; //TODO: scale up for infinite room gen
+int currfloor = 0; //global memory management for records.the first one will be the outside level,
+int numMesh = 0;   //dcalvert, your mob system hurts my soul
+int meshIndex = 0; //why is nothing you write even remotely scalable. why must you torture us
+float scaling = 5.0;
+int hjoined[2][2];
 
-//TODO: also miny, maxy
+//utility function. rand should be seeded before this is called, please! if you do this then you're the nicest. also min and max are inclusive!
+int getRandomNumber(int min, int max) {
+	return min + (rand() % (max - min + 1));
+}
+
+int determinePlayerRoom() {
+	float x, y, z;
+	getViewPosition(&x, &y, &z);
+	////printf("viewpos %f %f %f\n", x, y, z);
+	int noncalvertx = -(int)x;
+	int noncalverty = -(int)y;
+	int noncalvertz = -(int)z;
+	int roomindex = -1;
+	for (int i = 0; i < NUMROOMS; i++) {
+		if (noncalvertx > points[i].x && noncalvertx < points[i].x + dimensions[i].x) {
+			if (noncalvertx > points[i].z && noncalvertz < points[i].z + dimensions[i].z) {
+				if (noncalvertx > points[i].y && noncalverty < points[i].y + dimensions[i].y) {
+					roomindex = i;
+					break;
+				}
+			}
+		}
+	}
+	return roomindex;
+}
+
+long getTime() { //in ms
+	struct timeval time;
+	gettimeofday(&time, NULL);
+	long s1 = (long)(time.tv_sec) * 1000;
+	long s2 = (time.tv_usec / 1000);
+	return s1 + s2;
+}
+
 struct coord generatePoint(int minx, int maxx, int minz, int maxz) { //i dont care that its shit you made me do this calvert. three rows
 	struct coord point = {.x = getRandomNumber(minx, maxx), .y = QTHEIGHT, .z = getRandomNumber(minz, maxz)};
-	////printf("Generated point: %d %d %d\n", point.x, point.y, point.z);
+	//////printf("Generated point: %d %d %d\n", point.x, point.y, point.z);
 	return point;
 }
 
@@ -154,13 +198,13 @@ struct coord offsetPoint(struct coord a, int offsetx, int offsety, int offsetz) 
 }
 
 void fillVolume(struct coord origin, int l, int w, int h, GLbyte colour) {
-	////printf("origin %d %d %d; l=%d, w=%d, h=%d\n", origin.x, origin.y, origin.z, l, w, h);
+	//////printf("origin %d %d %d; l=%d, w=%d, h=%d\n", origin.x, origin.y, origin.z, l, w, h);
 	for(int x = origin.x; x < origin.x+w; x++) {
-		////printf("x: %d\t", x);
+		//////printf("x: %d\t", x);
 		for(int y = origin.y; y < origin.y+h; y++) {
-			////printf("y: %d\t", y);
+			//////printf("y: %d\t", y);
 			for(int z = origin.z; z < origin.z+l; z++) {
-				////printf("z: %d\n", z);
+				//////printf("z: %d\n", z);
 				world[x][y][z] = colour;
 			}
 		}
@@ -169,11 +213,11 @@ void fillVolume(struct coord origin, int l, int w, int h, GLbyte colour) {
 
 void fillVolumeCalvertizedTest(struct coord origin, int l, int w, int h, GLbyte colour) {
 	for(int x = origin.x; x > origin.x-w; x--) {
-		////printf("x: %d\t", x);
+		//////printf("x: %d\t", x);
 		for(int y = origin.y; y > origin.y-h; y--) {
-			////printf("y: %d\t", y);
+			//////printf("y: %d\t", y);
 			for(int z = origin.z; z > origin.z-l; z--) {
-				////printf("z: %d\n", z);
+				//////printf("z: %d\n", z);
 				world[x][y][z] = colour;
 			}
 		}
@@ -202,20 +246,89 @@ void collisionResponse() {
 		const float margin = 0.3;
 		//the following could definitely be improved:
 		if (world[-(int)(x-margin)][-(int)y][-(int)(z-margin)] || world[-(int)(x+margin)][-(int)y][-(int)(z+margin)] || -(int)x > WORLDX-1 || -(int)z > WORLDZ-1 || -(int)x < 0 || -(int)z < 0) {
-			////printf("Collision detected at: x:%f y:%f z:%f", x, y, z);
+			//////printf("Collision detected at: x:%f y:%f z:%f", x, y, z);
 			//going up the stairs takes confidence mr/ms/other TA, it's just like your first time conquering them as a child
 			if(!(-(int)x > WORLDX-1 || -(int)z > WORLDZ-1 || -(int)x < 0 || -(int)z < 0) && world[-(int)(x-margin)][-(int)y + 1][-(int)(z-margin)] == 0 && world[-(int)(x+margin)][-(int)y + 1][-(int)(z+margin)] == 0) {
-				////printf("up\n");
+				//////printf("up\n");
 				getOldViewPosition(&x, &y, &z);
 				setViewPosition(x, y-1.0, z);
 			} else 		{
 				//then we fix it
 				getOldViewPosition(&x, &y, &z);
 				setViewPosition(x, y, z);
-				////printf("proposed solution: %f %f %f\n", x, y, z);
+				//////printf("proposed solution: %f %f %f\n", x, y, z);
 			}
 
 		}
+	}
+}
+
+void drawPlayerMap() {
+	float px, py, pz;
+	getViewPosition(&px, &py, &pz);
+	int ix, iy, iz;
+	ix = -(int)px;
+	iy = -(int)py;
+	iz = -(int)pz;
+	GLfloat red[] = {1.0, 0.0, 0.0, 0.5};
+	set2Dcolour(red);
+	draw2Dtriangle((ix + 3) * scaling, iz * scaling, ix * scaling, iz * scaling, ix * scaling, (iz + 3) * scaling);
+}
+
+void drawRoomMap(int id) {
+	GLfloat black[] = {0.0, 0.0, 0.0, 0.5};
+	set2Dcolour(black);
+	//printf("drawing box at %d %d %d %d\n", points[id].x, points[id].z, points[id].x + dimensions[id].x, points[id].z + dimensions[id].z);
+	draw2Dbox(points[id].x * scaling, points[id].z * scaling, (points[id].x + dimensions[id].x) * scaling, (points[id].z + dimensions[id].z) * scaling);
+}
+
+void drawStairsMap() {
+	GLfloat green[] = {0.0, 1.0, 0.0, 0.5}; //for down
+	GLfloat blue[] = {0.0, 0.2, 1.0, 0.5}; //for up
+	set2Dcolour(green);
+	draw2Dbox(floors[currfloor]->stairs[STAIRS_DOWN].x * scaling, floors[currfloor]->stairs[STAIRS_DOWN].z * scaling, 
+			  (floors[currfloor]->stairs[STAIRS_DOWN].x + 1) * scaling, (floors[currfloor]->stairs[STAIRS_DOWN].z + 1) * scaling);
+	if (currfloor > 0) {
+		set2Dcolour(blue);
+		draw2Dbox(floors[currfloor]->stairs[STAIRS_UP].x * scaling, floors[currfloor]->stairs[STAIRS_UP].z * scaling, 
+			  	 (floors[currfloor]->stairs[STAIRS_UP].x + 1) * scaling, (floors[currfloor]->stairs[STAIRS_UP].z + 1) * scaling);
+	}
+}
+
+//draw2Dline: int x1, int y1, int x2, int y2, int lineWidth
+
+void drawJoiningRoomMap(int r1_index, int r2_index) {
+	const int w = 3;
+	GLfloat black[] = {0.0, 0.0, 0.0, 0.5};
+	set2Dcolour(black);
+	struct coord corner_for_z_join = offsetPoint(points[r1_index], 0, 0, dimensions[r1_index].z);
+	draw2Dline(points[r1_index].x * scaling, corner_for_z_join.z * scaling, points[r2_index].x * scaling, points[r2_index].z * scaling, w);
+	for (int i = 0; i < 2; i++) {
+		struct coord corner_for_x_join = offsetPoint(points[hjoined[i][0]], dimensions[hjoined[i][0]].x, 0, 0);
+		draw2Dline(corner_for_x_join.x * scaling, points[hjoined[i][0]].z * scaling, points[hjoined[i][1]].x * scaling, points[hjoined[i][1]].z * scaling, w);
+	} //TODO: revamp this to scale, to fix the (secret little bug) that nobody will notice
+}
+
+void drawMobs() {
+	GLfloat red[] = {1.0, 0.0, 0.0, 0.5};
+	set2Dcolour(red);
+	for(int i = meshIndex - 1; i >= meshIndex - NUMROOMS; i--) {
+		int visible = getVisible(i);
+		//printf("mesh %d's visibility is %d\n", i, visible);
+		if (visible) {
+			int x = (int)getx(i);
+			int z = (int)getz(i);
+			draw2Dbox(x * scaling, z * scaling, (x + 1) * scaling, (z + 1) * scaling);
+		}
+	}
+}
+
+void drawRandomBlocks(int i) {
+	GLfloat yellow[] = {1.0, 1.0, 0.0, 0.5};
+	set2Dcolour(yellow);
+	if (currfloor > 0) {
+		draw2Dbox(random_things[i].x * scaling, random_things[i].z * scaling, 
+			     (random_things[i].x + 1) * scaling, (random_things[i].z + 1) * scaling);
 	}
 }
 
@@ -242,7 +355,28 @@ void draw2D() {
 		}
 	} else {
 		/* your code goes here */
-		//TODO: your code goes here?
+		//also we should draw the map (jank but i have 8 hours left):
+		GLfloat black[] = {0.0, 0.0, 0.0, 0.5};
+		if (displayMap == 1) {
+			if (currfloor > 0) {
+				drawMobs();
+				for (int i = 0; i < NUMROOMS; i++) {
+					drawRandomBlocks(i);
+					drawStairsMap();
+					drawPlayerMap();
+					drawRoomMap(i);
+				}
+				for(int i = 0; i < (NUMROOMS/3) * 2; i++) { //i think my math on numrooms/3 * 2 is wrong but tbh in this case we want 6 so it works (9/3 * 2 = 6)
+					drawJoiningRoomMap(i, i+(NUMROOMS/3)); //3 would be NUMROWS if calvert's generation was well-advised but i fear he may change it any time
+				}
+			}
+			else {
+				drawPlayerMap();
+				drawStairsMap();
+				set2Dcolour(black);
+				draw2Dbox(0, 0, WORLDX * scaling, WORLDZ * scaling);
+			}
+		}
 	}
 }
 
@@ -266,10 +400,10 @@ void mouse(int button, int state, int x, int y) {
 		printf("down - ");
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
 		; //nop
-		//printf("da mouse is been clicked");
+		////printf("da mouse is been clicked");
 	}
 
-	//printf("%d %d\n", x, y);
+	////printf("%d %d\n", x, y);
 }
 
 /*(all ints pls) origin, l w h, colour.
@@ -289,27 +423,27 @@ void createRoom_old(struct coord origin, int l, int w, int h, GLbyte colour) {
 		for (int dnz = origin.z; dnz <= origin.z + l; dnz++) {
 			world[origin.x + w][dy][dnz] = colour;
 		}
-	} //TODO: have this make the room floors too
+	}
 	for(int floorx = origin.x; floorx <= origin.x + w; floorx++) {
 		for (int floorz = origin.z; floorz <= origin.z + l; floorz++) {
 			world[floorx][origin.y][floorz] = colour;
 		}
 	}
-	//TODO: this is technically inefficient, i could do this all in way less runtime but idc rlly cuz im timed. if i have time i will fix it
+	//deprecated
 } //i like pot_hole but i guess i'll SnakeStance this shit
 
 /*(all ints pls) origin, l w h, colour.
  the origin coords will point to the bottom left of the room*/
-void createRoom(struct coord origin, int l, int w, int h, GLbyte colour) {
+void createRoom(struct coord origin, int l, int w, int h, GLbyte colour) { //FIXME: could be done faster.
 	//dx, dy, dz = drwaing x,y,z. the n stands for nega
-	GLbyte altcolour = colour == 4 ? colour - 1 : colour + 1; //the floor cant be white or some staircases would be "invisible"
+	GLbyte floorcol = colour - 1;
 	for (int dy = origin.y; dy <= origin.y + h; dy++) {
 		for (int dx = origin.x; dx <= origin.x + w; dx++) {
 			world[dx][dy][origin.z] = colour;
 			world[dx][dy][origin.z + l] = colour;
 			for (int floorz = origin.z; floorz <= origin.z + l; floorz++) {
-				world[dx][origin.y][floorz] = altcolour;
-				world[dx][origin.y + h][floorz] = altcolour;
+				world[dx][origin.y][floorz] = floorcol;
+				world[dx][origin.y + h][floorz] = colour; //roof should match the walls
 			}
 		}
 		for (int dz = origin.z; dz <= origin.z + l; dz++) {
@@ -318,7 +452,6 @@ void createRoom(struct coord origin, int l, int w, int h, GLbyte colour) {
 		}
 	}
 	fillVolume(offsetPoint(origin, 1, 1, 1), l-1, w-1, h-1, 0); //why didnt i do this before.
-	//TODO: this is technically inefficient, i could do this all in way less runtime but idc rlly cuz im timed. if i have time i will fix it
 } //i like pot_hole but i guess i'll SnakeStance this shit
 
 struct coord getMidpoint(struct coord a, struct coord b) {
@@ -354,28 +487,28 @@ void splitQuadtree(struct qtNode* node) {
 	struct coord mp = getMidpoint(node->bottomleft, node->topright);
 	int midX = mp.x;
 	int midZ = mp.z;
-	//////printf("mp.x %d mp.z %d\n", mp.x, mp.z);
+	////////printf("mp.x %d mp.z %d\n", mp.x, mp.z);
 	struct coord a;
 	struct coord b;
 	node->nw = calloc(1, sizeof(struct qtNode));
 	a.x = node->bottomleft.x; a.y = QTHEIGHT; a.z = midZ;
 	b.x = midX; b.y = QTHEIGHT; b.z = node->topright.z;
-	//////printf("a: %d %d %d\nb: %d %d %d\n", a.x, a.y, a.z, b.x, b.y, b.z);
+	////////printf("a: %d %d %d\nb: %d %d %d\n", a.x, a.y, a.z, b.x, b.y, b.z);
 	initQuadtree(node->nw, a, b);
 	node->ne = calloc(1, sizeof(struct qtNode));
 	a.x = midX; a.y = QTHEIGHT; a.z = midZ;
 	b.x = node->topright.x; b.y = QTHEIGHT; b.z = node->topright.z;
-	//////printf("a: %d %d %d\nb: %d %d %d\n", a.x, a.y, a.z, b.x, b.y, b.z);
+	////////printf("a: %d %d %d\nb: %d %d %d\n", a.x, a.y, a.z, b.x, b.y, b.z);
 	initQuadtree(node->ne, a, b);
 	node->sw = calloc(1, sizeof(struct qtNode));
 	a.x = node->bottomleft.x; a.y = QTHEIGHT; a.z = node->bottomleft.z;
 	b.x = midX; b.y = QTHEIGHT; b.z = midZ;
-	//////printf("a: %d %d %d\nb: %d %d %d\n", a.x, a.y, a.z, b.x, b.y, b.z);
+	////////printf("a: %d %d %d\nb: %d %d %d\n", a.x, a.y, a.z, b.x, b.y, b.z);
 	initQuadtree(node->sw, a, b);
 	node->se = calloc(1, sizeof(struct qtNode));
 	a.x = midX; a.y = QTHEIGHT; b.z = node->bottomleft.x;
 	b.x = node->topright.x; b.y = QTHEIGHT; b.z = midZ;
-	//////printf("a: %d %d %d\nb: %d %d %d\n", a.x, a.y, a.z, b.x, b.y, b.z);
+	////////printf("a: %d %d %d\nb: %d %d %d\n", a.x, a.y, a.z, b.x, b.y, b.z);
 	initQuadtree(node->se, a, b);
 } //FIXME: deprecated due to three rows
 	
@@ -385,30 +518,154 @@ void splitQuadtree(struct qtNode* node) {
   min offset is at least 5% (int) of the size of the given area
   struct coord bottomleft, struct coord topright*/
 struct coord calculateDimensions(struct coord a, struct coord b, int maxOffset) {
-	struct coord dimensions;
+	struct coord dimension;
 	int xoffset = ((int)((float)(b.x - a.x))*(0.1)) + (rand() % (maxOffset+1)); //killme
 	int zoffset = ((int)((float)(b.z - a.z))*(0.1)) + (rand() % (maxOffset+1));
-	////printf("offsets: %d %d\n", xoffset, zoffset);
-	dimensions.x = (b.x - a.x) - xoffset; //width
-	dimensions.y = 8; //these can be further randomized/improved
-	dimensions.z = (b.z - a.z) - zoffset;
-	return dimensions;
+	//////printf("offsets: %d %d\n", xoffset, zoffset);
+	dimension.x = (b.x - a.x) - xoffset; //width
+	dimension.y = 8; //these can be further randomized/improved
+	dimension.z = (b.z - a.z) - zoffset;
+	return dimension;
 } //FIXME: deprecated due to three rows
 
 struct coord getRandomDimensions(int min, int max) {
 	//this is the brain damaged version of the above function. rooms cant exceed max size in any dimension.
-	struct coord dimensions;
-	dimensions.x = getRandomNumber(min, max);
-	dimensions.y = getRandomNumber(min, max);
-	dimensions.z = getRandomNumber(min, max);
-	////printf("generated dimensions: %d %d %d\n", dimensions.x, dimensions.y, dimensions.z);
-	return dimensions; //why has god forsaken me i just wanted to use a quadtree.
+	struct coord dimension;
+	dimension.x = getRandomNumber(min, max);
+	dimension.y = getRandomNumber(min, max);
+	dimension.z = getRandomNumber(min, max);
+	//////printf("generated dimensions: %d %d %d\n", dimensions.x, dimensions.y, dimensions.z);
+	return dimension; //why has god forsaken me i just wanted to use a quadtree.
 } //x = w; y = h; z = l
 
-bool proximityCheck(struct coord dimensions[], struct coord points[], int pindex, int margin) { //idc idgaf that its bad this is not my fault i just wanted qtree
+int meshVisibilityCheck(int id){
+	const static float factor = 15.0;
+	float xpos, yrot, zpos;
+	float mobX = getx(id);
+	float mobZ = getz(id);
+	int visible = getVisible(id);
+	float mvx;
+	float mvy;
+	float mvz;
+	getViewOrientation(&mvx, &mvy, &mvz);
+	getViewPosition(&xpos, &yrot, &zpos);
+
+	float xRot = (mvx / 180.0 * M_PI);
+	float yRot = (mvy / 180.0 * M_PI);
+
+	float x = sin(yRot)+factor; 
+	float z = cos(yRot)+factor;
+	float x1 = cos(yRot)+8; 
+	float z1 = sin(yRot)+8; 
+
+	xpos = -xpos; //decalvertize!
+	zpos = -zpos;
+
+	float fvisX = xpos;
+	float fvisZ = zpos;
+	float lvisX = xpos;
+	float lvisZ = zpos;
+	float lcornerX = xpos;
+	float lcornerZ = zpos;
+	float rvisX = xpos;
+	float rvisZ = zpos;
+	float rcornerX = xpos;
+	float rcornerZ = zpos;
+
+	//printf("vis: %d mobx: %f moby: %f, xpos: %f, zpos: %f\n", visible, mobX, mobZ, xpos, zpos);
+	short facing = (int)(yRot/1.5)%4;
+
+	if (facing==0){
+		fvisZ = fvisZ - z;
+		lvisX = lvisX + x1;
+		rvisX = rvisX - x1;
+		lcornerX = lvisX;
+		lcornerZ = fvisZ;
+		rcornerX = rvisX;
+		rcornerZ = fvisZ;
+
+		if (mobX > rvisX && mobX < lvisX){
+			if (mobZ < zpos && mobZ > fvisZ){
+				if (!visible){
+					printf("Cow mesh #%d is visible\n",id);
+					drawMesh(id);
+				}
+			}
+		}else if (visible){
+			printf("Cow mesh #%d is not visible\n",id);
+			hideMesh(id);
+		}
+
+	}else if (facing==1){
+		fvisX = fvisX + x;
+		lvisZ = lvisZ + z1;
+		rvisZ = rvisZ - z1;    
+		lcornerX = fvisX;
+		lcornerZ = lvisZ;
+		rcornerX = fvisX;
+		rcornerZ = rvisZ;  
+
+		if (mobX> xpos && mobX < fvisX){
+			if (mobZ >rvisZ && mobZ < lvisZ){
+				if (!visible){
+					printf("Cow mesh #%d is visible\n", id);
+					drawMesh(id);
+				}
+			}
+		}else if (visible){
+			printf("Cow mesh #%d is not visible\n", id);
+			hideMesh(id);
+		}
+	}else if (facing==2){
+		fvisZ = fvisZ + z;
+		lvisX = lvisX - x1;
+		rvisX = rvisX + x1;
+		lcornerX = lvisX;
+		lcornerZ = fvisZ;
+		rcornerX = rvisX;
+		rcornerZ = fvisZ;    
+
+		if (mobX> lvisX && mobX < rvisX){
+			if (mobZ> zpos && mobZ < fvisZ){
+				//up
+				if (!visible){
+					printf("Cow mesh #%d is visible\n", id);
+					drawMesh(id);
+				}
+			}
+		}else if (visible){
+			printf("Cow mesh #%d is not visible\n", id);
+			hideMesh(id);
+		}
+
+	} else if (facing==3){
+		fvisX = fvisX - x;
+		lvisZ = lvisZ - z1;
+		rvisZ = rvisZ + z1;
+		lcornerX = fvisX;
+		lcornerZ = lvisZ;
+		rcornerX = fvisX;
+		rcornerZ = rvisZ;   
+
+		if (mobX > fvisX && mobX < xpos){
+			if (mobZ > lvisZ && mobZ < rvisZ){
+				if (!visible){
+					printf("Cow mesh #%d is visible\n",id);
+					drawMesh(id);
+				}
+			}
+		}else if (visible){
+			printf("Cow mesh #%d is not visible\n",id);
+			hideMesh(id);
+		}
+	}
+}
+
+
+bool proximityCheck(int pindex, int margin) { //idc idgaf that its bad this is not my fault i just wanted qtree
 	bool result = true; //yes i know this doesnt account for the dimensions of point 2 but dont fuCking worry ab it
 	//int NUMROOMS = sizeof(points)/sizeof(*points); //ONLY PASS AN ARRAY HERE!!!
-	////printf("NUMROOMS resolves to %d\n", NUMROOMS);
+	//////printf("NUMROOMS resolves to %d\n", NUMROOMS);
 	struct coord point1_max;
 	int longer_side = 0;
 	point1_max.x = points[pindex].x + dimensions[pindex].x;
@@ -442,7 +699,7 @@ bool proximityCheck(struct coord dimensions[], struct coord points[], int pindex
 	return result;
 } //FIXME: no longer deprecated :)
 
-bool proximityCheck2(struct coord dimensions[], struct coord points[], int pindex, int margin) { //idc idgaf that its bad this is not my fault i just wanted qtree
+bool proximityCheck2(int pindex, int margin) { //idc idgaf that its bad this is not my fault i just wanted qtree
 	bool result = true; //yes i know this doesnt account for the dimensions of point 2 but dont fuCking worry ab it
 	if (pindex == 0) return true;
 	for(int i = 0; i < pindex; i++) {
@@ -458,19 +715,19 @@ bool proximityCheck2(struct coord dimensions[], struct coord points[], int pinde
 		point2_max.z = points[i].z + dimensions[i].z; 
 		struct coord center1 = getMidpoint(points[pindex], point1_max); //this is the center of our first;
 		struct coord center2 = getMidpoint(points[i], point2_max);
-		////printf("a: %d %d %d b: %d %d %d\n", points[pindex].x, points[pindex].y, points[pindex].z, points[i].x, points[i].y, points[i].z);
+		//////printf("a: %d %d %d b: %d %d %d\n", points[pindex].x, points[pindex].y, points[pindex].z, points[i].x, points[i].y, points[i].z);
 		if (dimensions[pindex].x > dimensions[pindex].z) {
 			r = ((float)(dimensions[pindex].x + margin)) / 2.0 + (float)margin;
 		} else {r = ((float)(dimensions[pindex].z + margin)) / 2.0 + (float)margin;} //the longer side len / 2 will be used as the radius
 		if(dimensions[i].x > dimensions[i].z) {
 			r2 = ((float)(dimensions[i].x)) / 2.0 + (float)margin;
 		} else {r2 = ((float)(dimensions[i].z)) / 2.0 + (float)margin;}
-		////printf("%f %f %lf\n", r, r2, sqrt((float)(((center2.x - center1.x) * (center2.x - center1.x)) + ((center2.z - center2.z) * (center2.z - center1.z)))));
+		//////printf("%f %f %lf\n", r, r2, sqrt((float)(((center2.x - center1.x) * (center2.x - center1.x)) + ((center2.z - center2.z) * (center2.z - center1.z)))));
 		//if ((((points[i].x - center.x) * (points[i].x - center.x)) + ((points[i].z - center.z) * (points[i].z - center.z))) < (((longer_side + margin)/2) * ((longer_side +  margin)/2))) {
 		if (sqrt((float)(((center2.x - center1.x) * (center2.x - center1.x)) + ((center2.z - center2.z) * (center2.z - center1.z)))) < (r + r2)) {
 			//if the distance between the two centers is less than the sum of their radii, they intersect
 			result = false;
-			////printf("pc failed\n");
+			//////printf("pc failed\n");
 			break;
 		}
 	}
@@ -504,7 +761,7 @@ void drawCorridor(struct coord a, int l, int w, int h, GLbyte colour) {
 	//createDoor(offsetPoint(a, 0, 0, l-1), w, h); //exit door
 } //FIXME: deprecated: bad
 
-void joinRooms(struct coord points[9], struct coord dimensions[9], int r1_index, int r2_index, const int w, const int h, GLbyte colour) {
+void joinRooms(int r1_index, int r2_index, const int w, const int h, GLbyte colour) {
 	int mid;
 	if (r2_index == r1_index + 3) { //mode 0 - x*
 		mid = (points[r2_index].z - (points[r1_index].z + dimensions[r1_index].z)) / 2;
@@ -515,18 +772,18 @@ void joinRooms(struct coord points[9], struct coord dimensions[9], int r1_index,
 		/*since we can't draw right to left becuase i dont want to change anything,
 		we draw the corridor from the leftmost side first. love to just use abs but 🤷*/
 		if (points[r1_index].x < points[r2_index].x) { //x+
-			////printf("todoroki %d\n", points[r2_index].x - points[r1_index].x); //w is passed as the l because its horizontal
+			//////printf("todoroki %d\n", points[r2_index].x - points[r1_index].x); //w is passed as the l because its horizontal
 			createRoom(offsetPoint(points[r1_index], 0, 0, mid + dimensions[r1_index].z), w, points[r2_index].x - points[r1_index].x + w, h, colour); //TODO: + w in w dubious?
 			fillVolume(offsetPoint(points[r1_index], 1, 1, mid + dimensions[r1_index].z + 1), w - 1, points[r2_index].x - points[r1_index].x + w - 1, h - 1, 0);
 		} else{ //x-
-			////printf("else %d\n", points[r1_index].x - points[r2_index].x);
+			//////printf("else %d\n", points[r1_index].x - points[r2_index].x);
 			createRoom(offsetPoint(points[r2_index], 0, 0, -mid), w, points[r1_index].x - points[r2_index].x + w, h, colour);
 			fillVolume(offsetPoint(points[r2_index], 1, 1, -mid + 1), w - 1, points[r1_index].x - points[r2_index].x + w - 1, h - 1, 0);
 		}
 		//clear the vertical tunnels
 		fillVolume(offsetPoint(points[r1_index], 1, 1, dimensions[r1_index].z), mid + w - 1, w - 1, h - 1, 0);
 		fillVolume(offsetPoint(points[r2_index], 1, 1, -mid + 1), mid + w - 1, w - 1, h - 1, 0);
-		////printf("%d/%d's corridor pair generated.\n", r1_index, r2_index);
+		//////printf("%d/%d's corridor pair generated.\n", r1_index, r2_index);
 	}
 	else { //mode 1 - z*
 		mid = ((points[r2_index].x - (points[r1_index].x + dimensions[r1_index].x)) / 2) - 1;
@@ -536,19 +793,19 @@ void joinRooms(struct coord points[9], struct coord dimensions[9], int r1_index,
 		createRoom(offsetPoint(points[r2_index], -mid, 0,  0), w, mid, h, colour);
 		//draw the horizontal (connecting) corridor
 		if (points[r1_index].z < points[r2_index].z) { //z+?
-			////printf("todoroki %d\n", points[r2_index].z - points[r1_index].z); //w is passed as the l because its horizontal
+			//////printf("todoroki %d\n", points[r2_index].z - points[r1_index].z); //w is passed as the l because its horizontal
 			createRoom(offsetPoint(points[r1_index], mid + dimensions[r1_index].x, 0, 0), points[r2_index].z - points[r1_index].z + w, w, h, colour); //TODO: + w in w dubious?
 			fillVolume(offsetPoint(points[r1_index], mid + dimensions[r1_index].x + 1, 1, 1), points[r2_index].z - points[r1_index].z + w - 1, w - 1, h - 1, 0);
 		} 
 		else{ //z-
-			////printf("else %d\n", points[r1_index].z - points[r2_index].z);
+			//////printf("else %d\n", points[r1_index].z - points[r2_index].z);
 			createRoom(offsetPoint(points[r2_index], -(mid + w), 0, 0), points[r1_index].z - points[r2_index].z + w, w, h, colour);
 			fillVolume(offsetPoint(points[r2_index], -(mid + w) + 1, 1, 1), points[r1_index].z - points[r2_index].z + w - 1, w - 1, h - 1, 0);
 		}
 		//clear the "horizontal tunnels"
 		fillVolume(offsetPoint(points[r1_index], dimensions[r1_index].x, 1, 1), w - 1, mid + 1, h - 1, 0); //aioubdiuq3TODO: THIS FIXME: THIS
 		fillVolume(offsetPoint(points[r2_index], (-mid), 1, 1),  w - 1, mid + 1, h - 1, 0);
-		////printf("%d/%d's corridor pair generated.\n", r1_index, r2_index);
+		//////printf("%d/%d's corridor pair generated.\n", r1_index, r2_index);
 	} //FIXME: for some reason, this generates holes in walls and doesnt make doorways. maybe the connection isnt center? maybe fix later
 }
 
@@ -625,7 +882,7 @@ float perlin(float x, float y) {
 
 int loadMaze(int which) { //which is experimental
 	FILE* prev;
-	
+	//nothing is real. it was all a dream go back to sleep
 }
 
 void genMaze() {
@@ -658,7 +915,7 @@ void genMaze() {
 	  different structure. seems pretty mean-spirited to me and i really wish i could just generate 9 rooms in any way i want): i will
 	  generate 9 points in predefined zones, then then generate 9 rooms of random sizes in three three "rows" that you have described.
 	  these rooms will also be guaranteed to be at least 1 block away from each other and not intersect. why cant i just quadtree*/
-	//printf("beginnign maze generation!\n");
+	////printf("beginnign maze generation!\n");
 	const int min_d = 8;
 	const int max_d = 15;
 	const int padding = min_d + (min_d/2) + 2;
@@ -672,14 +929,12 @@ void genMaze() {
 			
 	bool valid = false; //✨✨✨ FIXME: deprecated, remnant of quadtree implementation pre-three rows
 
-	struct coord points[NUMROOMS];
-	struct coord dimensions[NUMROOMS];
 	struct coord stairs[2]; //0 is u; 1 is down
 	struct coord spawn;
 
 	const int w = 5;
 	const int h = 5; //could make this random, min = 2, max = dimensions[i].h; but i dont really care
-	GLbyte colour = 1;
+	GLbyte colour = 18;
 	int mid;
 	
 	bool generationSuccess = true;
@@ -692,7 +947,7 @@ void genMaze() {
 				}
 			}
 		}
-		////printf("generation attempt\n");
+		//////printf("generation attempt\n");
 		//the following code generates 9 rooms in 9 zones with padding so they don't intersect.
 		points[0] = generatePoint(0, borderx1 - padding, 0, borderz1 - padding);
 		dimensions[0] = getRandomDimensions(min_d, max_d);
@@ -713,14 +968,18 @@ void genMaze() {
 		points[8] = generatePoint(borderx2 + padding, WORLDX - max_d, borderz2 + padding, WORLDZ - max_d);
 		dimensions[8] = getRandomDimensions(min_d, max_d); //"14 if statements" type beat because you hate quadtrees @dcalvert
 		for (int i = 0; i < NUMROOMS; i++) {
-			createRoom(points[i], dimensions[i].z, dimensions[i].x, dimensions[i].y, ((i+1)%7) + 1); //lwh args are out of order oops
+			createRoom(points[i], dimensions[i].z, dimensions[i].x, dimensions[i].y, 18); //lwh args are out of order oops
+			//oh, drawing the map like this is gonna be tricky to do with fog of war isnt it...
+			if (displayMap == 1) draw2Dbox(points[i].x, points[i].y, points[i].x + dimensions[i].x, points[i].y + dimensions[i].y); 
+			//TODO: maybe needs to be calvertized? also, this has some pretty bad coupling with other functions
 			//we can also create the one random block in the rooms now:
 			struct coord randomBlockPos;
 			randomBlockPos = generatePoint(points[i].x+1, points[i].x + dimensions[i].x - 1, points[i].z + 1, points[i].z + dimensions[i].z - 1);
-			world[randomBlockPos.x][randomBlockPos.y + 1][randomBlockPos.z] = 7;
+			random_things[i] = randomBlockPos;
+			world[randomBlockPos.x][randomBlockPos.y + 1][randomBlockPos.z] = 23;
 		}
 		for(int c = 0; c < NUMROOMS; c++) {
-			if((points[c].x + dimensions[c].x) >= WORLDX || (points[c].z + dimensions[c].z) >= WORLDZ || !proximityCheck(dimensions, points, c, 1)) {
+			if((points[c].x + dimensions[c].x) >= WORLDX || (points[c].z + dimensions[c].z) >= WORLDZ || !proximityCheck(c, 1)) {
 				generationSuccess = false;
 				break;
 			}
@@ -734,8 +993,9 @@ void genMaze() {
 	struct coord uspoint = generatePoint(points[us].x+1, points[us].x + dimensions[us].x - 1, points[us].z + 1, points[us].z + dimensions[us].z - 1);
 	stairs[0] = uspoint;
 	stairs[1] = dspoint;
-	world[stairs[STAIRS_UP].x][stairs[STAIRS_UP].y][stairs[STAIRS_UP].z] = 10; //creating up
-	world[stairs[STAIRS_DOWN].x][stairs[STAIRS_DOWN].y][stairs[STAIRS_DOWN].z] = 10; //creating down
+	world[stairs[STAIRS_UP].x][stairs[STAIRS_UP].y][stairs[STAIRS_UP].z] = 24; //creating up
+	world[stairs[STAIRS_DOWN].x][stairs[STAIRS_DOWN].y][stairs[STAIRS_DOWN].z] = 25; //creating down
+	
 	/*imagine doing things programmatically... OH WAIT, i cant, because you took away my quadtree @dcalvert
 	anyways, now, because @dcalvert is a literal hater and hates people using fitting and appropriate algorithms
 	to procedurally generate mazes as he describes in HIS OWN LECTURES, i will continue this trend of simply basically
@@ -747,7 +1007,7 @@ void genMaze() {
 		
 	//the corridors are just rooms LLOL iof u really THINK about it
 	for(int i = 0; i < (NUMROOMS/3) * 2; i++) { //i think my math on numrooms/3 * 2 is wrong but tbh in this case we want 6 so it works (9/3 * 2 = 6)
-		joinRooms(points, dimensions, i, i+(NUMROOMS/3), w, h, colour); //3 would be NUMROWS if calvert's generation was well-advised but i fear he may change it any time
+		joinRooms(i, i+(NUMROOMS/3), w, h, colour); //3 would be NUMROWS if calvert's generation was well-advised but i fear he may change it any time
 	}
 	/*now let's connect the rows to make an H joining shape:
 	this uses a "jump table" of sorts because i am quite lazy right now and couldn't think of a mathematically
@@ -755,45 +1015,48 @@ void genMaze() {
 	int corridors[2][3][2] = {{{0, 1}, {3, 4}, {6, 7}}, {{1, 2}, {4, 5}, {7, 8}}};
 	//those are the valid pairs, we pick one pair from each set:
 	int chosenindex = getRandomNumber(0, 2);
-	joinRooms(points, dimensions, corridors[0][chosenindex][0], corridors[0][chosenindex][1], w, h, colour);
+	hjoined[0][0] = corridors[0][chosenindex][0];
+	hjoined[0][1] = corridors[0][chosenindex][1];
+	joinRooms(corridors[0][chosenindex][0], corridors[0][chosenindex][1], w, h, colour);
 	chosenindex = getRandomNumber(0, 2);
-	joinRooms(points, dimensions, corridors[1][chosenindex][0], corridors[1][chosenindex][1], w, h, colour);
+	hjoined[1][0] = corridors[1][chosenindex][0];
+	hjoined[1][1] = corridors[1][chosenindex][1];
+	joinRooms(corridors[1][chosenindex][0], corridors[1][chosenindex][1], w, h, colour);
 	//instead of using functions, i dont want to. i just dont care. this is so borked idc idgaf why three rows dude just why
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
 	//three rows
 	//the next two create the player but he is kinda scary so let's just not for now
 	//getViewPosition(&x, &y, &z);
 	//createPlayer(0, x-5, -y, z-5, 0.0);
-	int offset = getRandomNumber(5, min_d);
-	//TODO: change back after debug to "us"
-	spawn = offsetPoint(points[0], offset, 3, offset); //spawn beside the up stairs
-	//printf("attemptint to spawn er in %d %d %d\n", -spawn.x, -spawn.y, -spawn.z);
+	//TODO: change back after debug to "us" - what did i mean by this. i forget which var us is. STAIRS_UP?
+	
+	spawn = offsetPoint(points[us], dimensions[us].x / 2, 3, dimensions[us].z / 2); //spawn beside the up stairs
+	
+	////printf("attemptint to spawn er in %d %d %d\n", -spawn.x, -spawn.y, -spawn.z);
 	//and now, we write the maze's info to the lowestmost un-written index
 	int seek = 0;
-	//printf("saving.\n");
+	////printf("saving.\n");
 	while (floors[seek]) {seek++;} //? i think?
 	floors[seek] = calloc(1, sizeof(struct record));
+
+	//STOP. cow generation time.
+	//it pains me to make another NUMROOMS length for loop, but I can't generate the cows until I know all the rooms are good...
+	
+	for (int cow_room = 0; cow_room < NUMROOMS; cow_room++) {
+		//they're all cows, you can't stop me. the cow model is just too cute
+		struct coord cow_pos = {.x = points[cow_room].x + (dimensions[cow_room].x/2),
+								.y = points[cow_room].y + (dimensions[cow_room].y/2),
+								.z = points[cow_room].z + (dimensions[cow_room].z/2)};
+		//printf("cow #%d generating at %d %d %d\n", meshIndex, cow_pos.x, cow_pos.y, cow_pos.z);
+		setMeshID(meshIndex, 0, (float)cow_pos.x,
+							   (float)cow_pos.y, //he flies
+							   (float)cow_pos.z); //don't forget to de-calvertize
+		meshIndex += 1;
+	}
+
 	for(int sx=0; sx<WORLDX; sx++) {
 		for(int sy=0; sy<WORLDY; sy++) {
 			for(int sz=0; sz<WORLDZ; sz++) {
-				////printf("saving %d %d %d\n", sx, sy, sz);
+				//////printf("saving %d %d %d\n", sx, sy, sz);
 				floors[seek]->world[sx][sy][sz] = world[sx][sy][sz];
 			}
 		}
@@ -801,10 +1064,14 @@ void genMaze() {
 	floors[seek]->spawn = spawn;
 	floors[seek]->stairs[STAIRS_UP] = stairs[STAIRS_UP];
 	floors[seek]->stairs[STAIRS_DOWN] = stairs[STAIRS_DOWN];
-	//printf("done!\n");
-	printf("points[0] = %d %d %d\n", points[0].x, points[0].y, points[0].z);
+	////printf("done!\n");
+	//printf("points[0] = %d %d %d\n", points[0].x, points[0].y, points[0].z);
 	setViewPosition(-(float)spawn.x, -(float)spawn.y, -(float)spawn.z);
 	//remember not to try to load after the maze is generated, the generation IS the loading
+}
+
+bool check_timing(time_t target_time, time_t current_time) {
+	return (current_time >= target_time) ? true : false;
 }
 
 /*** update() ***/
@@ -820,7 +1087,7 @@ void update() {
 	/* sample animation for the testworld, don't remove this code */
 	/* demo of animating mobs */
 	getViewPosition(&x, &y, &z);
-
+	////printf("meshindex: %d\n", meshIndex);
 	if (testWorld) {
 
 		/* update old position so it contains the correct value */
@@ -831,8 +1098,8 @@ void update() {
 		float xx, yy, zz;
 		getViewPosition(&x, &y, &z);
 		getOldViewPosition(&xx, &yy, &zz);
-		////printf("%f %f %f %f %f %f\n", xx, yy, zz, x, y, z);
-		////printf("%f %f %f\n",  -xx+((x-xx)*25.0), -yy+((y-yy)*25.0), -zz+((z-zz)*25.0));
+		//////printf("%f %f %f %f %f %f\n", xx, yy, zz, x, y, z);
+		//////printf("%f %f %f\n",  -xx+((x-xx)*25.0), -yy+((y-yy)*25.0), -zz+((z-zz)*25.0));
 		createTube(2, -xx, -yy, -zz, -xx-((x-xx)*25.0), -yy-((y-yy)*25.0), -zz-((z-zz)*25.0), 5);
 		#endif
 
@@ -930,28 +1197,32 @@ void update() {
 
 	 	/* end testworld animation */
 
-
 	} else {
+		//update timings if necesasry:
+		time_t currtime = getTime();
+		////printf("timings[0] = %ld\ncurrtime = %ld\n", timings[0], currtime);
+		if(timings[0] == 0L) {timings[0] = currtime + (time_t)100L;} //100ms is the timing for the clouds
+		if(currfloor != 0 && timings[1] == 0L) {timings[1] = currtime + (time_t)100L;} //30ms is the timing for the mob animation, hopefully it works.
+		if(currfloor != 0 && timings[2] == 0L) {timings[2] = currtime + (time_t)2000L;}
 		/* your code goes here */
 		//why would i put it here i want gravity to exist on the test world too?
 		setOldViewPosition(x,y,z); //i'm like 90% sure this should be called before gvp(i i i)
 		getViewPosition(&x, &y, &z);
 		getViewOrientation(&rx, &ry, &rz);
-		//printf("viewpos %f %f %f\n", x, y, z);
+		////printf("viewpos %f %f %f\n", x, y, z);
 		int noncalvertx = -(int)x;
 		int noncalverty = -(int)y;
 		int noncalvertz = -(int)z;
-		////printf("non-calvertpos %d %d %d\n", noncalvertx, noncalverty, noncalvertz);
 		bool on_stairs = false;
 		if (floors[currfloor]->stairs[STAIRS_UP].x == noncalvertx) {
-			//printf("x match.u\n");
+			////printf("x match.u\n");
 			if (floors[currfloor]->stairs[STAIRS_UP].z == noncalvertz) {
-				//printf("z matchedu\n");
+				////printf("z matchedu\n");
 				if (floors[currfloor]->stairs[STAIRS_UP].y == noncalverty - 1) {
-					//printf("y-1 (maybe + 1?) matchu\n");
-					//printf("loading triggered.\n");
+					////printf("y-1 (maybe + 1?) matchu\n");
+					////printf("loading triggered.\n");
 					if (currfloor == 0) {
-						//printf("Trying to ascend to heaven: not allowed, due to furry.\nAlso up staircase on overworld, fix.\n");
+						////printf("Trying to ascend to heaven: not allowed, due to furry.\nAlso up staircase on overworld, fix.\n");
 					} else {
 						currfloor -= 1;
 						on_stairs = true;
@@ -960,26 +1231,42 @@ void update() {
 			}
 		}
 		else if (floors[currfloor]->stairs[STAIRS_DOWN].x == noncalvertx) {
-			//printf("x match.d\n");
+			////printf("x match.d\n");
 			if (floors[currfloor]->stairs[STAIRS_DOWN].z == noncalvertz) {
-				//printf("z matchedd\n");
+				////printf("z matchedd\n");
 				if (floors[currfloor]->stairs[STAIRS_DOWN].y == noncalverty - 1) {
-					//printf("y-1 (maybe + 1?) matchd\n");
-					//printf("ok, loading downstairs\n");
+					////printf("y-1 (maybe + 1?) matchd\n");
+					////printf("ok, loading downstairs\n");
 					currfloor += 1;
 					on_stairs = true;
 				}
 			}
 		} //i've been wrong all alonG! could refactor! hope it works anyways though! ahha
 		if (on_stairs) {
-			if (!(floors[currfloor])) {
-				//printf("No deeper maze exists. creating one! Or, there has been some catastrophe\n");
+			if (!(floors[currfloor])) { //"currfloor" here actually is the index of the floor we're loading currently.
+				////printf("No deeper maze exists. creating one! Or, there has been some catastrophe\n");
+				if (meshIndex != 0) {
+					for (int i = meshIndex - 1; i >= meshIndex - NUMROOMS; i--) {
+						////printf("hiding mobid %d\n", i);
+						hideMesh(i); //calvert's mob management system makes less sense than string theory
+					}
+				}
 				genMaze();
 			}
 			else {
+				//since there's a saved floor at this level, we'll load it. we also need to hide the cows from the last level
 				for(int lx = 0; lx < WORLDX; lx++) {
 					for (int ly = 0; ly < WORLDY; ly++) {
 						for (int lz = 0; lz < WORLDZ; lz++) {
+							if (meshIndex != 0) {
+								for (int i = meshIndex - 1; i >= meshIndex - NUMROOMS; i--) {
+									////printf("hiding mobid %d\n", i);
+									hideMesh(i); //calvert's mob management system makes less sense than string theory
+								}
+								if (currfloor > 1) {
+									meshIndex -= NUMROOMS;
+								}
+							}
 							world[lx][ly][lz] = floors[currfloor]->world[lx][ly][lz];
 						}
 					}
@@ -992,7 +1279,7 @@ void update() {
 		else {
 			if(plsnocrash && usegravity){
 				if(world[-(int)x][-(int)(y+1)][-(int)z] == 0) {
-					//////printf("grabity\n");
+					////////printf("grabity\n");
 					setViewPosition(x,y+0.1,z);
 					//collisionResponse();
 				}
@@ -1000,39 +1287,77 @@ void update() {
 			}
 		} //FIXME: jank
 		//i know the following is bad, but i still want a quadtree and its february
-		const int updatefreq = 50; 
-		if (((++framecount) % INT32_MAX) % updatefreq == 0) {
-			float divisor = 10;
-			if (currfloor == 0) {
-				cloudoffset = cloudoffset + 0.1;
-				//uh isn't this going to cause some fucking EPIC lag
-				for (int x = 0; x < WORLDX; x++) {
-					//world[x][WORLDY-7][z] = 0;
-					for (int z = 0; z < WORLDZ; z++) {
-						float x1 = ((float)x/divisor) + cloudoffset;
-						float z1 = ((float)z/divisor);
-						float y1 = (WORLDY - 7) + perlin(x1, z1) * 5;
-						////printf("x: %f, y: %f, z: %f\n", (float)x1, y1, (float)z1);
-						if (y1 > WORLDY-5) {
-							world[x][(int)y1][z] = 5;
-						}
-						else {
-							for (int y = WORLDY - 5; y < WORLDY; y++) {
-								world[x][y][z] = 0;
-							}
+		static float cloud_offset = 0.0;
+		float divisor = 10;
+		static int movement_dir = 0;
+		//FIXME: these are incredibly laggy and could be done better LAWL
+		if (currfloor == 0 && check_timing(timings[0], currtime)) {
+			cloud_offset = cloud_offset + 0.1;
+			//uh isn't this going to cause some fucking EPIC lag
+			for (int x = 0; x < WORLDX; x++) {
+				//world[x][WORLDY-7][z] = 0;
+				for (int z = 0; z < WORLDZ; z++) {
+					float x1 = ((float)x/divisor) + cloud_offset;
+					float z1 = ((float)z/divisor);
+					float y1 = (WORLDY - 7) + perlin(x1, z1) * 5;
+					//////printf("x: %f, y: %f, z: %f\n", (float)x1, y1, (float)z1);
+					if (y1 > WORLDY-5) {
+						world[x][(int)y1][z] = 5;
+					}
+					else {
+						for (int y = WORLDY - 5; y < WORLDY; y++) {
+							world[x][y][z] = 0;
 						}
 					}
 				}
-			} //HOLY SHIT they're going to TANK it
+			}
+			//HOLY SHIT they're going to TANK it
+			timings[0] = (time_t)0;
+		}
+		if(check_timing(timings[2], currtime)) { //yeah i think currtime can just be obtained in the function... why didnt i do that...
+			movement_dir = !movement_dir;
+			timings[2] = (time_t)0;
+		}
+		if (currfloor != 0 && check_timing(timings[1], currtime)) { //translate the meshes
+			for (int i = meshIndex - 1; i >= meshIndex - NUMROOMS; i--) {
+				meshVisibilityCheck(i);
+				if (getVisible(i)) {
+					float xpos = getx(i);
+					float ypos = gety(i);
+					float zpos = getz(i);
+					if (movement_dir == 0) {
+						setTranslateMesh(i, xpos + 0.01, ypos, zpos);
+					}
+					else {
+						setTranslateMesh(i, xpos - 0.01, ypos, zpos);
+					}
+				}
+			}
+			timings[1] == 0;
 		}
 	}
 }
 
 /*end of code from Wikipedia https://en.wikipedia.org/wiki/Perlin_noise*/
-/*"Note that the code below is very basic, for illustration only, will be slow, and not usable in applications." 
-  :trollface: you think any code we're writing for this is usable./..*/
-int main(int argc, char** argv)
-{
+/*"Note that the code below is very basic, for illustration only, will be slow, and not usable in applications."*/
+/*
+░░░░░▄▄▄▄▀▀▀▀▀▀▀▀▄▄▄▄▄▄░░░░░░░
+░░░░░█░░░░▒▒▒▒▒▒▒▒▒▒▒▒░░▀▀▄░░░░
+░░░░█░░░▒▒▒▒▒▒░░░░░░░░▒▒▒░░█░░░
+░░░█░░░░░░▄██▀▄▄░░░░░▄▄▄░░░░█░░
+░▄▀▒▄▄▄▒░█▀▀▀▀▄▄█░░░██▄▄█░░░░█░
+█░▒█▒▄░▀▄▄▄▀░░░░░░░░█░░░▒▒▒▒▒░█
+█░▒█░█▀▄▄░░░░░█▀░░░░▀▄░░▄▀▀▀▄▒█
+░█░▀▄░█▄░█▀▄▄░▀░▀▀░▄▄▀░░░░█░░█░
+░░█░░░▀▄▀█▄▄░█▀▀▀▄▄▄▄▀▀█▀██░█░░
+░░░█░░░░██░░▀█▄▄▄█▄▄█▄████░█░░░
+░░░░█░░░░▀▀▄░█░░░█░█▀██████░█░░
+░░░░░▀▄░░░░░▀▀▄▄▄█▄█▄█▄█▄▀░░█░░
+░░░░░░░▀▄▄░▒▒▒▒░░░░░░░░░░▒░░░█░
+░░░░░░░░░░▀▀▄▄░▒▒▒▒▒▒▒▒▒▒░░░░█░
+░░░░░░░░░░░░░░▀▄▄▄▄▄░░░░░░░░█░░
+*/
+int main(int argc, char** argv) {
 	int i, j, k = 0;
 	float x, y, z = 0.0;
 	//seed random
@@ -1095,97 +1420,96 @@ int main(int argc, char** argv)
 		//createPlayer(0, 52.0, 27.0, 52.0, 0.0);
 		//no. he's creepy
 		
-	/* create sample player */
-	  createPlayer(0, 52.0, 27.0, 52.0, 0.0);
+		/* create sample player */
+		createPlayer(0, 52.0, 27.0, 52.0, 0.0);
 
-	/* texture examples */
+		/* texture examples */
 
-	/* create textured cube */
-	/* create user defined colour with an id number of 11 */
-	  setUserColour(11, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-	/* attach texture 22 to colour id 11 */
-	  setAssignedTexture(11, 22);
-	/* place a cube in the world using colour id 11 which is texture 22 */
-	  world[59][25][50] = 11;
+		/* create textured cube */
+		/* create user defined colour with an id number of 11 */
+		setUserColour(11, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+		/* attach texture 22 to colour id 11 */
+		setAssignedTexture(11, 22);
+		/* place a cube in the world using colour id 11 which is texture 22 */
+		world[59][25][50] = 11;
 
-	/* create textured cube */
-	  setUserColour(12, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-	  setAssignedTexture(12, 27);
-	  world[61][25][50] = 12;
+		/* create textured cube */
+		setUserColour(12, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+		setAssignedTexture(12, 27);
+		world[61][25][50] = 12;
 
-	/* create textured cube */
-	  setUserColour(10, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-	  setAssignedTexture(10, 26);
-	  world[63][25][50] = 10;
+		/* create textured cube */
+		setUserColour(10, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+		setAssignedTexture(10, 26);
+		world[63][25][50] = 10;
 
-	/* create textured floor */
-	  setUserColour(13, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-	  setAssignedTexture(13, 8);
-	  for (i=57; i<67; i++)
-		 for (j=45; j<55; j++)
-			world[i][24][j] = 13;
+		/* create textured floor */
+		setUserColour(13, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+		setAssignedTexture(13, 8);
+		for (i=57; i<67; i++)
+			for (j=45; j<55; j++)
+				world[i][24][j] = 13;
 
-	/* create textured wall */
-	  setUserColour(14, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-	  setAssignedTexture(14, 18);
-	  for (i=57; i<67; i++)
-		 for (j=0; j<4; j++)
-			world[i][24+j][45] = 14;
+		/* create textured wall */
+		setUserColour(14, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+		setAssignedTexture(14, 18);
+		for (i=57; i<67; i++)
+			for (j=0; j<4; j++)
+				world[i][24+j][45] = 14;
 
-	/* create textured wall */
-	  setUserColour(15, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-	  setAssignedTexture(15, 42);
-	  for (i=45; i<55; i++)
-		 for (j=0; j<4; j++)
-			world[57][24+j][i] = 15;
+		/* create textured wall */
+		setUserColour(15, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+		setAssignedTexture(15, 42);
+		for (i=45; i<55; i++)
+			for (j=0; j<4; j++)
+				world[57][24+j][i] = 15;
 
 		// two cubes using the same texture but one is offset
 		// cube with offset texture 33
-	  setUserColour(16, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-	  setAssignedTexture(16, 33);
-	  world[65][25][50] = 16;
-	  setTextureOffset(16, 0.5, 0.5);
+		setUserColour(16, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+		setAssignedTexture(16, 33);
+		world[65][25][50] = 16;
+		setTextureOffset(16, 0.5, 0.5);
 		// cube with non-offset texture 33
-	  setUserColour(17, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-	  setAssignedTexture(17, 33);
-	  world[66][25][50] = 17;
+		setUserColour(17, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+		setAssignedTexture(17, 33);
+		world[66][25][50] = 17;
 
 		// create some lava textures that will be animated
-	  setUserColour(18, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-	  setAssignedTexture(18, 24);
-	  world[62][24][55] = 18;
-	  world[63][24][55] = 18;
-	  world[64][24][55] = 18;
-	  world[62][24][56] = 18;
-	  world[63][24][56] = 18;
-	  world[64][24][56] = 18;
+		setUserColour(18, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+		setAssignedTexture(18, 24);
+		world[62][24][55] = 18;
+		world[63][24][55] = 18;
+		world[64][24][55] = 18;
+		world[62][24][56] = 18;
+		world[63][24][56] = 18;
+		world[64][24][56] = 18;
 
-		// draw cow mesh and rotate 45 degrees around the y axis
-		// game id = 0, cow mesh id == 0
-	  setMeshID(0, 0, 48.0, 26.0, 50.0);
-	  setRotateMesh(0, 0.0, 45.0, 0.0);
+			// draw cow mesh and rotate 45 degrees around the y axis
+			// game id = 0, cow mesh id == 0
+		setMeshID(0, 0, 48.0, 26.0, 50.0);
+		setRotateMesh(0, 0.0, 45.0, 0.0);
 
-		// draw fish mesh and scale to half size (0.5)
-		// game id = 1, fish mesh id == 1
-	  setMeshID(1, 1, 51.0, 28.0, 50.0);
-	  setScaleMesh(1, 0.5);
+			// draw fish mesh and scale to half size (0.5)
+			// game id = 1, fish mesh id == 1
+		setMeshID(1, 1, 51.0, 28.0, 50.0);
+		setScaleMesh(1, 0.5);
 
-		// draw cow mesh and rotate 45 degrees around the y axis
-		// game id = 2, cow mesh id == 0
-	  setMeshID(2, 0, 59.0, 26.0, 47.0);
+			// draw cow mesh and rotate 45 degrees around the y axis
+			// game id = 2, cow mesh id == 0
+		setMeshID(2, 0, 59.0, 26.0, 47.0);
 
-		// draw bat
-		// game id = 3, bat mesh id == 2
-	  setMeshID(3, 2, 61.0, 26.0, 47.0);
-	  setScaleMesh(3, 0.5);
-		// draw cactus
-		// game id = 4, cactus mesh id == 3
-	  setMeshID(4, 3, 63.0, 26.0, 47.0);
-	  setScaleMesh(4, 0.5);
+			// draw bat
+			// game id = 3, bat mesh id == 2
+		setMeshID(3, 2, 61.0, 26.0, 47.0);
+		setScaleMesh(3, 0.5);
+			// draw cactus
+			// game id = 4, cactus mesh id == 3
+		setMeshID(4, 3, 63.0, 26.0, 47.0);
+		setScaleMesh(4, 0.5);
 
 
-   } else {
-	   
+	} else {
 		/* your code to build the world goes here */
 		
 		plsnocrash = true;
@@ -1200,9 +1524,31 @@ int main(int argc, char** argv)
 					world[i][j][k] = 0;
 				}
 			}
-		} //init to empty TODO: removedebug and compartmentalize
+		}
 
 		//outside world generation
+		setUserColour(17, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+		setAssignedTexture(17, 9);
+		setUserColour(18, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+	  	setAssignedTexture(18, 18); //18 18 would be ok fdor a normal ass wall
+		setUserColour(19, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+	  	setAssignedTexture(19, 37);
+
+		setUserColour(20, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0); //for grass
+	  	setAssignedTexture(20, 41);
+		setUserColour(21, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0); //for mud
+	  	setAssignedTexture(21, 12);
+		setUserColour(22, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0); //for mountaintops
+	  	setAssignedTexture(22, 5); //looks a little dingy, but..
+
+		setUserColour(23, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0); //for random dungeon blocks
+	  	setAssignedTexture(23, 22);
+		
+		setUserColour(24, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0); //for up stairs
+	  	setAssignedTexture(24, 31);
+		setUserColour(25, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0); //for down stairs
+	  	setAssignedTexture(25, 32);
+
 		float divisor1 = 20.0;
 		float divisor2 = 20.0;
 		float offset = (float)getRandomNumber(0,GL_MAX); //idc
@@ -1215,9 +1561,9 @@ int main(int argc, char** argv)
 				float y = perlin(x0, z0) * 17;
 				GLbyte elevation;
 				
-				if(y > 4.0) {elevation = 5;}
-				else if (y < -4.0) {elevation = 9;}
-				else {elevation = 1;}
+				if(y > 4.0) {elevation = 22;}
+				else if (y < -4.0) {elevation = 21;}
+				else {elevation = 20;}
 				for(int deep = 0; deep < 3; deep++) {
 					world[x][(int)y+QTHEIGHT - deep][z] = elevation;
 				}
@@ -1225,30 +1571,34 @@ int main(int argc, char** argv)
 					//someone told me you could do the following to assign structs:
 					stairslocation = (struct coord){x, (int)y+QTHEIGHT, z};
 					//totally blew my mind. didnt know it was possible.
-					world[x][(int)y+QTHEIGHT][z] = 10;
+					world[x][(int)y+QTHEIGHT][z] = 25;
 				}
 			}
 		} //uh huh
 		
-		//printf("done! saving now.\n");
+		////printf("done! saving now.\n");
 		floors[0] = calloc(1, sizeof(struct record));
 		//inefficient? lawl.
 		for(int sx = 0; sx < WORLDX; sx++) {
 			for (int sy = 0; sy < WORLDY; sy++){
 				for (int sz = 0; sz < WORLDZ; sz++){
-					////printf("saving %d %d %d...\n", sx, sy, sz);
+					//////printf("saving %d %d %d...\n", sx, sy, sz);
 					floors[0]->world[sx][sy][sz] = world[sx][sy][sz];
 				}
 			}
 		}
 		struct coord dummy = {.x = 0, .y = 0, .z = 0}; //c99 sexy
 		struct coord spawn = {.x = 53, .y = QTHEIGHT + 7, .z = 53}; //hopefully never gens in ground. just for testing
-		//printf("stairs: %d %d %d %d %d %d\n", dummy.x, dummy.y, dummy.z, spawn.x, spawn.y, spawn.z);
+		////printf("stairs: %d %d %d %d %d %d\n", dummy.x, dummy.y, dummy.z, spawn.x, spawn.y, spawn.z);
 		floors[0]->stairs[STAIRS_UP] = dummy;
 		floors[0]->stairs[STAIRS_DOWN] = stairslocation;
 		floors[0]->spawn = spawn;
+		GLfloat black[] = {0.0, 0.0, 0.0, 0.5};
+		set2Dcolour(black);
+		draw2Dbox(0, 0, WORLDX, WORLDZ);
+		//floors[0]->mobs[0] = NULL;
 		//setViewPosition((float)spawn.x, (float)spawn.y, (float)spawn.z);
-		//printf("saving done I think!\n");
+		////printf("saving done I think!\n");
 		setViewPosition(-(float)floors[currfloor]->spawn.x,-(float)floors[currfloor]->spawn.y,-(float)floors[currfloor]->spawn.z);
 	}
 

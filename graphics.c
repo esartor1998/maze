@@ -1360,7 +1360,7 @@ void graphicsInit(int *argc, char **argv) {
 
 	/* parse command line args */
 	fullscreen = 0;
-	for(i=1; i<*argc; i++) {
+	for(i=1; i<*argc; i++) { //i could use my systems programming knowledge to improve this..
 		if (strcmp(argv[i], "-nofly") == 0)
 			flycontrol = 0;
 		if (strcmp(argv[i],"-full") == 0)
@@ -1375,8 +1375,16 @@ void graphicsInit(int *argc, char **argv) {
 			netClient = 1;
 		if (strcmp(argv[i],"-server") == 0)
 			netServer = 1;
+		if (strcmp(argv[i], "-displayMap")) {
+			if (argv[i + 1]) { //check it's valid first
+				displayMap = atoi(argv[i + 1]) % 3; //idc what it does if its not in the range lol
+			} //dM @ 0: no map, @ 1: no fow, @ 2: fow
+			else {
+				displayMap = 1; //defaulting to show the whole map
+			}
+		}
 		if (strcmp(argv[i],"-help") == 0) {
-			printf("Usage: a4 [-full] [-drawall] [-testworld] [-fps] [-client] [-server]\n");
+			printf("Usage: a4 [-full] [-drawall] [-testworld] [-fps] [-client] [-server] [-displayMap [0-2]]\n");
 			exit(0);
 		}
 	}
@@ -1602,6 +1610,12 @@ void setMeshID(int id, int meshNumber, float xpos, float ypos, float zpos) {
 void unsetMeshID(int id) {
    meshUsed[id] = 0;
 }
+
+float getx(int id) {return userMesh[id].xpos;}
+float gety(int id) {return userMesh[id].ypos;}
+float getz(int id) {return userMesh[id].zpos;}
+
+int getVisible(int id) {return userMesh[id].drawMesh;}
 
 void setTranslateMesh(int id, float xpos, float ypos, float zpos) {
    userMesh[id].xpos = xpos;

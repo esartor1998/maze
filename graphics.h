@@ -14,6 +14,7 @@
 #endif
 
 #include <time.h>
+#include <sys/time.h>
 
 /* world size and storage array */
 #define WORLDX 100
