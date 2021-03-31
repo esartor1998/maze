@@ -253,6 +253,15 @@ int PointInFrustum( float x, float y, float z )
 	return true;
 }
 
+int SphereInFrustum( float x, float y, float z, float radius) {
+	int p;
+
+	for( p = 0; p < 6; p++ )
+		if( frustum[p][0] * x + frustum[p][1] * y + frustum[p][2] * z + frustum[p][3] <= -radius )
+			return false;
+   	return true;
+}
+
 int CubeInFrustum( float x, float y, float z, float size )
 {
 	int p;

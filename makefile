@@ -54,6 +54,9 @@ automatically: a1.c graphics.c visible.c mesh.c graphics.h mesh.h fast_obj.h
 fast:
 	$(COMPILER) a1.c graphics.c visible.c mesh.c -O3 -o a1 $(LIBS)
 
+pedantic:
+	$(COMPILER) a1.c graphics.c visible.c mesh.c -O3 -pedantic -Wall -o a1 $(LIBS)
+
 clean:
 	rm -f a1
 	rm -f *.o

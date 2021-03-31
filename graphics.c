@@ -42,10 +42,20 @@ struct uMesh {
    int drawMesh; 
 	/* position of mesh */
    float xpos, ypos, zpos;
+	/* prev position of mesh */
+   float oldx, oldy, oldz;
 	/* rotation of mesh */
    float xrot, yrot, zrot;
 	/* scale mesh */
    float scale;
+   /* is chasing the player */
+   bool chase;
+   /* destination (for bats) */
+   int destination;
+   /* alive or dead */
+   bool active;
+   /* on the current level or not */
+   bool present;
 };
 	/* holds all user mesh instances */
 struct uMesh userMesh[MAXMESH];
@@ -509,7 +519,9 @@ void setObjectColour(int colourID) {
 		else {
 		/* user define colour */
 		if (uColourUsed[ colourID ] != 1) {
-			printf("ERROR, attempt to access colour which is not allocated.\n");
+			//printf("ERROR, attempt to access colour id #%d which is not allocated.\n", colourID);
+			//this is erroneously printing for some erason
+
 		}
 		/* user defined colours, look up the RGBA colour values */
 		/* for the world value in the user defined colour array */
@@ -1594,9 +1606,14 @@ void setMeshID(int id, int meshNumber, float xpos, float ypos, float zpos) {
    meshUsed[id] = 1;
 	// store mesh information 
    userMesh[id].meshNumber = meshNumber;
+   
+   
    userMesh[id].xpos = xpos;
    userMesh[id].ypos = ypos;
    userMesh[id].zpos = zpos;
+   userMesh[id].oldx = xpos;
+   userMesh[id].oldy = ypos;
+   userMesh[id].oldz = zpos;
 
    userMesh[id].xrot = 0.0;
    userMesh[id].yrot = 0.0;
@@ -1604,7 +1621,14 @@ void setMeshID(int id, int meshNumber, float xpos, float ypos, float zpos) {
    userMesh[id].scale = 1.0;
 	// set mesh as visible
    userMesh[id].drawMesh = 1;
+   userMesh[id].chase = false;
+   userMesh[id].destination = -1;
+   userMesh[id].active = true;
+   userMesh[id].present = true;
+}
 
+int getMeshNumber(int id) {
+	return userMesh[id].meshNumber;
 }
 
 void unsetMeshID(int id) {
@@ -1614,13 +1638,28 @@ void unsetMeshID(int id) {
 float getx(int id) {return userMesh[id].xpos;}
 float gety(int id) {return userMesh[id].ypos;}
 float getz(int id) {return userMesh[id].zpos;}
-
+float getoldx(int id) {return userMesh[id].oldx;}
+float getoldy(int id) {return userMesh[id].oldy;}
+float getoldz(int id) {return userMesh[id].oldz;}
 int getVisible(int id) {return userMesh[id].drawMesh;}
+bool getChase(int id) {return userMesh[id].chase;}
+void setChase(int id, bool status) {userMesh[id].chase = status;}
+int getDestination(int id) {return userMesh[id].destination;}
+void setDestination(int id, int room) {userMesh[id].destination = room;}
 
 void setTranslateMesh(int id, float xpos, float ypos, float zpos) {
+   userMesh[id].oldx = userMesh[id].xpos;
+   userMesh[id].oldy = userMesh[id].ypos;
+   userMesh[id].oldz = userMesh[id].zpos;
    userMesh[id].xpos = xpos;
    userMesh[id].ypos = ypos;
    userMesh[id].zpos = zpos;
+}
+
+void resetTranslateMesh(int id) {
+   userMesh[id].xpos = userMesh[id].oldx;
+   userMesh[id].ypos = userMesh[id].oldy;
+   userMesh[id].zpos = userMesh[id].oldz;
 }
 
 void setRotateMesh(int id, float xrot, float yrot, float zrot) {
@@ -1643,3 +1682,15 @@ void hideMesh(int id) {
 	// mesh data structures
    userMesh[id].drawMesh = 0;
 }
+
+bool getActive(int id) {return userMesh[id].active;}
+void setActive(int id, bool status) {
+	userMesh[id].active = status;
+	if (!status) {
+		hideMesh(id);
+	}
+	else {drawMesh(id);};
+}
+
+bool getPresent(int id) {return userMesh[id].present;}
+void setPresent(int id, bool status) {userMesh[id].present = status;}

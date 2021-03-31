@@ -15,7 +15,10 @@
 
 //so many externs...
 extern GLubyte  world[WORLDX][WORLDY][WORLDZ];
-
+extern float frustum[6][4];
+extern void ExtractFrustum();
+extern int PointInFrustum(float x, float y, float z);
+extern int SphereInFrustum(float x, float y, float z, float radius);
 /* mouse function called by GLUT when a button is pressed or released */
 void mouse(int, int, int, int);
 
@@ -67,7 +70,18 @@ extern void setTextureOffset(int, float, float);
 extern float getx(int);
 extern float gety(int);
 extern float getz(int);
+extern float getoldx(int);
+extern float getoldy(int);
+extern float getoldz(int);
 extern int getVisible(int);
+extern bool getChase(int);
+extern void setChase(int, bool);
+extern int getDestination(int);
+extern void setDestination(int, int);
+extern bool getActive(int);
+extern void setActive(int, bool);
+extern bool getPresent(int);
+extern void setPresent(int, bool);
 
 /* flag which is set to 1 when flying behaviour is desired */
 extern int flycontrol;
@@ -109,10 +123,12 @@ extern void getUserColour(int, GLfloat *, GLfloat *, GLfloat *, GLfloat *,
 extern void setMeshID(int, int, float, float, float);
 extern void unsetMeshID(int);
 extern void setTranslateMesh(int, float, float, float);
+extern void resetTranslateMesh(int);
 extern void setRotateMesh(int, float, float, float);
 extern void setScaleMesh(int, float);
 extern void drawMesh(int);
 extern void hideMesh(int);
+extern int getMeshNumber(int); //"mesh number" is a bit misleading, it actually refers to the type
 
 /********* end of extern variable declarations **************/
 
@@ -121,9 +137,30 @@ extern void hideMesh(int);
 //and temp globals
 #define QTHEIGHT 24
 #define NUMROOMS 9
-#define STAIRS_UP 0
-#define STAIRS_DOWN 1
-#define MAX_ROOMS 100
+#define MAX_FLOORS 100
+
+//i dont care. this makes it more readable and i want to do it
+enum direction {n, ne, e, se, s, sw, w, nw, none}; //directions from north clockwise, with a special fail case
+
+enum direction combineDirections(enum direction v, enum direction h) { //i could do this instead by arranging the enum in a clever way but i dont have time
+	if (v == n) {
+		if (h == e) {
+			return ne;
+		}
+		else if (h == w) {
+			return nw;
+		}
+	}
+	else if (v == s) {
+		if (h == e) {
+			return se;
+		}
+		else if (h == w) {
+			return sw;
+		}
+	}
+	return n; //if everything else fails just return north. this will happen if two composite vectors are added.
+}
 
 struct coord {
 	int x;
@@ -134,43 +171,55 @@ struct coord {
 struct record { //this might need to store mobs too... and other things...
 	GLbyte world[WORLDX][WORLDY][WORLDZ];
 	struct coord spawn;
-	struct coord stairs[2]; //this is stored because the stairs hold special data + also need to be cross referenced from several scopes
+	struct coord stairs[2 * MAX_FLOORS]; //this is stored because the stairs hold special data + also need to be cross referenced from several scopes
 	//struct mob* mobs[MAXMESH]; //needs to be a pointer so that it can also be empty
 };
 
 const int map_offset = 5; //ATTN: 5 pixels?
-bool plsnocrash = false;
+bool world_inited = false;
 time_t timings[100] = {0L}; //timings[0] will hold the clouds, [1] the mobs, then whatever else.
-struct record* floors[MAX_ROOMS] = {NULL}; //if only things were different... @dcalvert...
-struct coord points[NUMROOMS];
-struct coord dimensions[NUMROOMS];
-struct coord random_things[NUMROOMS]; //TODO: scale up for infinite room gen
+struct record* floors[MAX_FLOORS] = {NULL}; //if only things were different... @dcalvert...
+struct coord points[MAX_FLOORS * NUMROOMS];
+struct coord dimensions[MAX_FLOORS * NUMROOMS];
+struct coord random_things[MAX_FLOORS * NUMROOMS]; //TODO: INFROOMS scale up for infinite room gen
+struct coord curr_viewpos = {0, 0, 0};
 int currfloor = 0; //global memory management for records.the first one will be the outside level,
+int prevfloor = 0;
 int numMesh = 0;   //dcalvert, your mob system hurts my soul
-int meshIndex = 0; //why is nothing you write even remotely scalable. why must you torture us
+int meshIndex = 0; //this is actually the global offset for indices.
 float scaling = 5.0;
-int hjoined[2][2];
+int hjoined[2 * MAX_FLOORS][2 * MAX_FLOORS];
+
+#define STAIRS_UP (currfloor * 2) + 0
+#define STAIRS_DOWN (currfloor * 2) + 1
+#define SIDE_A currfloor + 0
+#define SIDE_B currfloor + 2 //NOTE THIS LEAVES SOME SLOTS OPEN!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FIXME:FIXME:
 
 //utility function. rand should be seeded before this is called, please! if you do this then you're the nicest. also min and max are inclusive!
 int getRandomNumber(int min, int max) {
 	return min + (rand() % (max - min + 1));
 }
 
-int determinePlayerRoom() {
+double getDistance2d(struct coord a, struct coord b) {
+	double n_squared = (double)((b.x - a.x) * (b.x - a.x)); //not my usual style but i don't want to mess anything up!!
+	double m_squared = (double)((b.z - a.z) * (b.z - a.z));
+	return sqrt(n_squared + m_squared);
+}
+
+struct coord getMobCoord(int id) {
+	return (struct coord){(int)getx(id), (int)gety(id), (int)getz(id)};
+}
+
+int determineRoom(struct coord pos) { //-1 means to find the player's room
 	float x, y, z;
-	getViewPosition(&x, &y, &z);
-	////printf("viewpos %f %f %f\n", x, y, z);
-	int noncalvertx = -(int)x;
-	int noncalverty = -(int)y;
-	int noncalvertz = -(int)z;
 	int roomindex = -1;
-	for (int i = 0; i < NUMROOMS; i++) {
-		if (noncalvertx > points[i].x && noncalvertx < points[i].x + dimensions[i].x) {
-			if (noncalvertx > points[i].z && noncalvertz < points[i].z + dimensions[i].z) {
-				if (noncalvertx > points[i].y && noncalverty < points[i].y + dimensions[i].y) {
-					roomindex = i;
-					break;
-				}
+	for (int i = meshIndex; i < meshIndex + NUMROOMS; i++) {
+		if (pos.x > points[i].x && pos.x < points[i].x + dimensions[i].x) {
+			if (pos.z > points[i].z && pos.z < points[i].z + dimensions[i].z) {
+				//if (noncalverty > points[i].y && noncalverty < points[i].y + dimensions[i].y) {
+				roomindex = i;
+				break;
+				//}
 			}
 		}
 	}
@@ -211,27 +260,13 @@ void fillVolume(struct coord origin, int l, int w, int h, GLbyte colour) {
 	}
 }
 
-void fillVolumeCalvertizedTest(struct coord origin, int l, int w, int h, GLbyte colour) {
-	for(int x = origin.x; x > origin.x-w; x--) {
-		//////printf("x: %d\t", x);
-		for(int y = origin.y; y > origin.y-h; y--) {
-			//////printf("y: %d\t", y);
-			for(int z = origin.z; z > origin.z-l; z--) {
-				//////printf("z: %d\n", z);
-				world[x][y][z] = colour;
-			}
-		}
-	}
+bool attack_check() {
+	return getRandomNumber(0, 100) > 50 ? true : false;
 }
 
-struct qtNode {
-	struct coord bottomleft;
-	struct coord topright;
-	struct qtNode* nw;
-	struct qtNode* ne;
-	struct qtNode* sw;
-	struct qtNode* se;
-};
+bool adjacencyCheck(struct coord a, struct coord b) { //NOTE: doesn't check y!
+	return abs(a.x - b.x) <= 1 && abs(a.z - b.z) <= 1;
+}
 
 /*** collisionResponse() ***/
 /* -performs collision detection and response */
@@ -241,26 +276,180 @@ struct qtNode {
 	will be the negative value of the array indices */
 void collisionResponse() {
 	if (collisions) {
-		float x, y, z = 0.0;
+		float x, y, z, ox, oy, oz = 0.0;
 		getViewPosition(&x, &y, &z);
-		const float margin = 0.3;
-		//the following could definitely be improved:
-		if (world[-(int)(x-margin)][-(int)y][-(int)(z-margin)] || world[-(int)(x+margin)][-(int)y][-(int)(z+margin)] || -(int)x > WORLDX-1 || -(int)z > WORLDZ-1 || -(int)x < 0 || -(int)z < 0) {
-			//////printf("Collision detected at: x:%f y:%f z:%f", x, y, z);
-			//going up the stairs takes confidence mr/ms/other TA, it's just like your first time conquering them as a child
-			if(!(-(int)x > WORLDX-1 || -(int)z > WORLDZ-1 || -(int)x < 0 || -(int)z < 0) && world[-(int)(x-margin)][-(int)y + 1][-(int)(z-margin)] == 0 && world[-(int)(x+margin)][-(int)y + 1][-(int)(z+margin)] == 0) {
-				//////printf("up\n");
-				getOldViewPosition(&x, &y, &z);
-				setViewPosition(x, y-1.0, z);
-			} else 		{
-				//then we fix it
-				getOldViewPosition(&x, &y, &z);
-				setViewPosition(x, y, z);
-				//////printf("proposed solution: %f %f %f\n", x, y, z);
-			}
+		const float margin = 0.3; //calvert's favourite random number
+		bool collisionX = false;
+		bool ascendY = false;
+		bool collisionZ = false;
 
+		//getOldViewPosition(&ox, &oy, &oz);
+		//setViewPosition(ox, oy, oz);
+		if(world[-(int)(x-margin)][-(int)y][-(int)(z)] || world[-(int)(x+margin)][-(int)y][-(int)(z)] || -(int)x > WORLDX-1 || -(int)x < 0) {
+			//printf("x axis collision?\n");
+			collisionX = true;
+		}
+		if (world[-(int)(x)][-(int)y][-(int)(z-margin)] || world[-(int)(x)][-(int)y][-(int)(z+margin)] || -(int)z > WORLDZ-1 || -(int)z < 0) {
+			//printf("z axis collision?\n");
+			collisionZ = true;
+		}
+
+		if (collisionX || collisionZ) { //cis1500 tier code structure dont @ me fuckers because i _know_
+			if(!(-(int)x > WORLDX-1 || -(int)z > WORLDZ-1 || -(int)x < 0 || -(int)z < 0) && world[-(int)(x-margin)][-(int)y + 1][-(int)(z-margin)] == 0 && world[-(int)(x+margin)][-(int)y + 1][-(int)(z+margin)] == 0) {
+				ascendY = true;
+			}
+			getOldViewPosition(&ox, &oy, &oz);
+			setViewPosition((collisionX ? ox : x), (ascendY ? y-1.0 : y), (collisionZ ? oz : z));
+		}
+
+		if (currfloor > 0) { //this loop would crash on the outside level, also it's not useful there anyways
+			//this function checks if the player is colliding with any mobs on the floor
+			for (int id = meshIndex; id < (currfloor * NUMROOMS); id++) { //FIXME: INFROOMS this won't scale because it uses the mesh id's naively
+				if (getActive(id) && getVisible(id)) {
+					float mx = getx(id); // these arent calvertized for some reason. very good thank you mr calvreyt
+					float mz = getz(id); // no need to check for y overlap because fuck you
+					//printf("mx = %d mz = %d x = %d z = %d\n", -(int)mx, -(int)mz, -(int)x, -(int)z);
+					if (-(int)x == (int)mx && -(int)z == (int)mz) {
+						getOldViewPosition(&x, &y, &z);
+						setViewPosition(x, y, z);
+					}
+				}
+			}
 		}
 	}
+}
+
+enum direction determineVerticalDirection(struct coord mob, struct coord dest) {
+	if (dest.z > mob.z) { //player is north somewhere -- also i say player but i mean destination
+		return n;
+	}
+	else if (dest.z < mob.z) { //player is south somewhere
+		return s;
+	}
+	return none;
+}
+
+enum direction determineHorizontalDirection(struct coord mob, struct coord dest) {
+	if (dest.x > mob.x) { //player is east somewhere
+		return e;
+	}
+	else if (dest.x < mob.x) { //player is west somewhere
+		return w;
+	}
+	return none;
+}
+
+enum direction determineDirectionToDestination(int id, struct coord dest) {
+	struct coord mob = getMobCoord(id); //in the wise words of dr. kremer: i could do this in a really clever way. OR, i could write 17 if statements
+	enum direction horizontal = determineHorizontalDirection(mob, dest);
+	enum direction vertical = determineVerticalDirection(mob, dest);
+	if (horizontal != none && vertical != none) { //then we have a composite direction!
+		return combineDirections(vertical, horizontal);
+	}
+	else if (horizontal != none) return horizontal;
+	return vertical;
+} //reworked to be a lil messier than the classy thing i had before... but it had to be done.
+
+void moveInDirection(int id, enum direction dir) { //could have done this all so much more cleverly i know but i havent time to think
+	const float speed = 0.75;
+	float x = getx(id);
+	float y = gety(id);
+	float z = getz(id);
+	switch(dir) {
+		case n:
+			setTranslateMesh(id, x, y, z + speed);
+			break;
+		case ne:
+			setTranslateMesh(id, x + speed, y, z + speed);
+			break;
+		case e:
+			setTranslateMesh(id, x + speed, y, z);
+			break;
+		case se:
+			setTranslateMesh(id, x + speed, y, z - speed);
+			break;
+		case s:
+			setTranslateMesh(id, x, y, z - speed);
+			break;
+		case sw:
+			setTranslateMesh(id, x - speed, y, z - speed);
+			break;
+		case w:
+			setTranslateMesh(id, x - speed, y, z);
+			break;
+		case nw:
+			setTranslateMesh(id, x - speed, y, z + speed);
+			break;
+		default:
+			;
+			//printf("Cannot move in %d (probably none) direction\n", dir);
+	}
+}
+
+/*int chooseBestDoor(struct coord pos, int dest_index) {
+	//if the room you're in is an h-joiner and you need it, take it, otherwise path down or up as needed
+	int cur_index = determineRoom(pos);
+	if (points[dest_index].x < points[cur_index].x) {
+		for (int i = 0; i < 2; i++) {
+			for (int j = 0; )
+		}
+	}
+	return lowest_index;
+}*/
+
+bool mobCollisionResponse(int id) { //new idea: i don't have to have any idea where he's going, just the vector
+	bool collisionX, collisionZ = false; //FIXME: no longer do they warp through walls but they do get stuck now
+	if (getActive(id) && getPresent(id)) {
+		//int dest = dest = getDestination(id);
+		float x = getx(id);
+		float y = gety(id);
+		float z = getz(id);
+		float ox = getoldx(id);
+		float oy = getoldy(id);
+		float oz = getoldz(id);
+		const float margin = 0.3;
+		//the following could definitely be improved:
+		if(world[(int)(x-margin)][(int)y][(int)(z)] || world[(int)(x+margin)][(int)y][(int)(z)] || (int)x > WORLDX-1 || (int)x < 0) {
+			//printf("x axis collision?\n");
+			collisionX = true;
+		}
+		if (world[(int)(x)][(int)y][(int)(z-margin)] || world[(int)(x)][(int)y][(int)(z+margin)] || (int)z > WORLDZ-1 || (int)z < 0) {
+			//printf("z axis collision?\n");
+			collisionZ = true;
+		}
+
+		if (collisionX || collisionZ) { //cis1500 tier code structure dont @ me fuckers because i _know_
+			setTranslateMesh(id, (collisionX ? ox : x), y, (collisionZ ? oz : z));
+		}
+		/*if (world[mob.x-margin][mob.y][mob.z] || world[mob.x+margin][mob.y][mob.z]) { //collision on the x axis
+			resetTranslateMesh(id);
+			correction = determineVerticalDirection(mob, (dest == -1 ? curr_viewpos : offsetPoint(points[dest], 2, 0, 2)));
+			//printf("correctionA = %d\n", correction);
+			moveInDirection(id, correction);
+		}
+		if (world[mob.x][mob.y][mob.z-margin] || world[mob.x][mob.y][mob.z+margin]) { //collision on the z axis
+			resetTranslateMesh(id);
+			correction = determineHorizontalDirection(mob, (dest == -1 ? curr_viewpos : offsetPoint(points[dest], 2, 0, 2)));
+			//printf("correctionB = %d\n", correction);
+			moveInDirection(id, correction);
+		}
+		if (mob.x > WORLDX-1 || mob.z > WORLDZ-1 || mob.x < 0 || mob.z < 0) { //out of bounds, just reset!
+			resetTranslateMesh(id);
+		}*/
+		if (currfloor > 0) { //this shouldnt trigger on floor0 but we'll check just in case, since it WILL crash if it somehow doees
+			struct coord mob = getMobCoord(id);
+			for (int i = meshIndex; i < (currfloor * NUMROOMS); i++) { //FIXME: INFROOMS doesn't scale right!
+				if(id != i && getActive(id)) {
+					struct coord other_mob = getMobCoord(i);
+					if (mob.x == other_mob.x && mob.y == other_mob.y && mob.z == other_mob.z) {
+						resetTranslateMesh(id); //turns are kinda wasted when they run into walls tho
+						collisionX = true; //just collision SOMETHing, for the return value
+					}
+				}
+			}
+		}
+	}
+	return (collisionX || collisionZ);
 }
 
 void drawPlayerMap() {
@@ -298,24 +487,41 @@ void drawStairsMap() {
 //draw2Dline: int x1, int y1, int x2, int y2, int lineWidth
 
 void drawJoiningRoomMap(int r1_index, int r2_index) {
+	//printf("currfloor is %d\n", currfloor);
 	const int w = 3;
 	GLfloat black[] = {0.0, 0.0, 0.0, 0.5};
 	set2Dcolour(black);
 	struct coord corner_for_z_join = offsetPoint(points[r1_index], 0, 0, dimensions[r1_index].z);
 	draw2Dline(points[r1_index].x * scaling, corner_for_z_join.z * scaling, points[r2_index].x * scaling, points[r2_index].z * scaling, w);
-	for (int i = 0; i < 2; i++) {
-		struct coord corner_for_x_join = offsetPoint(points[hjoined[i][0]], dimensions[hjoined[i][0]].x, 0, 0);
-		draw2Dline(corner_for_x_join.x * scaling, points[hjoined[i][0]].z * scaling, points[hjoined[i][1]].x * scaling, points[hjoined[i][1]].z * scaling, w);
-	} //TODO: revamp this to scale, to fix the (secret little bug) that nobody will notice
+	for (int i = SIDE_A; i <= SIDE_B; i++) {
+		//printf("i=%d\n", i);
+		struct coord corner_for_x_join = offsetPoint(points[hjoined[i][SIDE_A]], dimensions[hjoined[i][SIDE_A]].x, 0, 0);
+		draw2Dline(corner_for_x_join.x * scaling, points[hjoined[i][SIDE_A]].z * scaling, points[hjoined[i][SIDE_B]].x * scaling, points[hjoined[i][SIDE_B]].z * scaling, w);
+	} //TODO: revamp this to scale, to fix the (secret little bug) that nobody will notice.                        1mo later: fuck i dont't even notice it
 }
 
 void drawMobs() {
 	GLfloat red[] = {1.0, 0.0, 0.0, 0.5};
-	set2Dcolour(red);
-	for(int i = meshIndex - 1; i >= meshIndex - NUMROOMS; i--) {
+	GLfloat black[] = {0.0, 0.0, 0.0, 0.87};
+	GLfloat cactusgreen[] = {0.2, 1.0, 0.2, 0.5};
+	for(int i = meshIndex; i <= meshIndex + NUMROOMS; i++) {
 		int visible = getVisible(i);
+		int mob_type = getMeshNumber(i);
+		switch(mob_type) {
+			case 1:
+				set2Dcolour(red);
+				break;
+			case 2:
+				set2Dcolour(black);
+				break;
+			case 3:
+				set2Dcolour(cactusgreen);
+				break;
+			default:
+				set2Dcolour(red);
+		}
 		//printf("mesh %d's visibility is %d\n", i, visible);
-		if (visible) {
+		if (getActive(i)) {
 			int x = (int)getx(i);
 			int z = (int)getz(i);
 			draw2Dbox(x * scaling, z * scaling, (x + 1) * scaling, (z + 1) * scaling);
@@ -328,7 +534,7 @@ void drawRandomBlocks(int i) {
 	set2Dcolour(yellow);
 	if (currfloor > 0) {
 		draw2Dbox(random_things[i].x * scaling, random_things[i].z * scaling, 
-			     (random_things[i].x + 1) * scaling, (random_things[i].z + 1) * scaling);
+				 (random_things[i].x + 1) * scaling, (random_things[i].z + 1) * scaling);
 	}
 }
 
@@ -360,13 +566,14 @@ void draw2D() {
 		if (displayMap == 1) {
 			if (currfloor > 0) {
 				drawMobs();
-				for (int i = 0; i < NUMROOMS; i++) {
+				for (int i = meshIndex; i < meshIndex + NUMROOMS; i++) {
 					drawRandomBlocks(i);
 					drawStairsMap();
 					drawPlayerMap();
 					drawRoomMap(i);
 				}
-				for(int i = 0; i < (NUMROOMS/3) * 2; i++) { //i think my math on numrooms/3 * 2 is wrong but tbh in this case we want 6 so it works (9/3 * 2 = 6)
+				//printf("meshindex is %d and currfloor is %d\n", meshIndex, currfloor);
+				for(int i = meshIndex; i < meshIndex + ((NUMROOMS/3) * 2); i++) { //i think my math on numrooms/3 * 2 is wrong but tbh in this case we want 6 so it works (9/3 * 2 = 6)
 					drawJoiningRoomMap(i, i+(NUMROOMS/3)); //3 would be NUMROWS if calvert's generation was well-advised but i fear he may change it any time
 				}
 			}
@@ -400,37 +607,13 @@ void mouse(int button, int state, int x, int y) {
 		printf("down - ");
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
 		; //nop
-		////printf("da mouse is been clicked");
+		float xp, yp, zp;
+		getViewPosition(&xp, &yp, &zp);
+		printf("viewpos %f %f %f\n", xp, yp, zp);
 	}
 
 	////printf("%d %d\n", x, y);
 }
-
-/*(all ints pls) origin, l w h, colour.
- the origin coords will point to the bottom left of the room*/
-void createRoom_old(struct coord origin, int l, int w, int h, GLbyte colour) {
-	//dx, dy, dz = drwaing x,y,z. the n stands for nega
-	for (int dy = origin.y; dy <= origin.y + h; dy++) {
-		for (int dx = origin.x; dx <= origin.x + w; dx++) {
-			world[dx][dy][origin.z] = colour;
-		}
-		for (int dz = origin.z; dz <= origin.z + l; dz++) {
-			world[origin.x][dy][dz] = colour;
-		}
-		for (int dnx = origin.x; dnx <= origin.x + w; dnx++) {
-			world[dnx][dy][origin.z + l] = colour;
-		}
-		for (int dnz = origin.z; dnz <= origin.z + l; dnz++) {
-			world[origin.x + w][dy][dnz] = colour;
-		}
-	}
-	for(int floorx = origin.x; floorx <= origin.x + w; floorx++) {
-		for (int floorz = origin.z; floorz <= origin.z + l; floorz++) {
-			world[floorx][origin.y][floorz] = colour;
-		}
-	}
-	//deprecated
-} //i like pot_hole but i guess i'll SnakeStance this shit
 
 /*(all ints pls) origin, l w h, colour.
  the origin coords will point to the bottom left of the room*/
@@ -460,73 +643,7 @@ struct coord getMidpoint(struct coord a, struct coord b) {
 	midpoint.y = QTHEIGHT;
 	midpoint.z = (a.z + b.z) / 2;
 	return midpoint;
-} //FIXME: deprecated: unused, though could be used during generation to clean it up a bit
-
-double getDistance2d(struct coord a, struct coord b) {
-	double n_squared = (double)((b.x - a.x) * (b.x - a.x)); //not my usual style but i don't want to mess anything up!!
-	double m_squared = (double)((b.z - a.z) * (b.z - a.z));
-	return sqrt(n_squared + m_squared);
-}
-
-void initQuadtree(struct qtNode* node, struct coord bottomleft, struct coord topright) {
-	node->bottomleft.x = bottomleft.x;
-	node->bottomleft.y = bottomleft.y;
-	node->bottomleft.z = bottomleft.z;
-	node->topright.x = topright.x;
-	node->topright.y = topright.y;
-	node->topright.z = topright.z;
-	node->nw = NULL;
-	node->ne = NULL;
-	node->sw = NULL;
-	node->se = NULL;
-} //FIXME: deprecated due to three rows
-
-/*we need to create the inital quadtree as the whole space
-this function only requires a struct qtNode* to split */
-void splitQuadtree(struct qtNode* node) {
-	struct coord mp = getMidpoint(node->bottomleft, node->topright);
-	int midX = mp.x;
-	int midZ = mp.z;
-	////////printf("mp.x %d mp.z %d\n", mp.x, mp.z);
-	struct coord a;
-	struct coord b;
-	node->nw = calloc(1, sizeof(struct qtNode));
-	a.x = node->bottomleft.x; a.y = QTHEIGHT; a.z = midZ;
-	b.x = midX; b.y = QTHEIGHT; b.z = node->topright.z;
-	////////printf("a: %d %d %d\nb: %d %d %d\n", a.x, a.y, a.z, b.x, b.y, b.z);
-	initQuadtree(node->nw, a, b);
-	node->ne = calloc(1, sizeof(struct qtNode));
-	a.x = midX; a.y = QTHEIGHT; a.z = midZ;
-	b.x = node->topright.x; b.y = QTHEIGHT; b.z = node->topright.z;
-	////////printf("a: %d %d %d\nb: %d %d %d\n", a.x, a.y, a.z, b.x, b.y, b.z);
-	initQuadtree(node->ne, a, b);
-	node->sw = calloc(1, sizeof(struct qtNode));
-	a.x = node->bottomleft.x; a.y = QTHEIGHT; a.z = node->bottomleft.z;
-	b.x = midX; b.y = QTHEIGHT; b.z = midZ;
-	////////printf("a: %d %d %d\nb: %d %d %d\n", a.x, a.y, a.z, b.x, b.y, b.z);
-	initQuadtree(node->sw, a, b);
-	node->se = calloc(1, sizeof(struct qtNode));
-	a.x = midX; a.y = QTHEIGHT; b.z = node->bottomleft.x;
-	b.x = node->topright.x; b.y = QTHEIGHT; b.z = midZ;
-	////////printf("a: %d %d %d\nb: %d %d %d\n", a.x, a.y, a.z, b.x, b.y, b.z);
-	initQuadtree(node->se, a, b);
-} //FIXME: deprecated due to three rows
-	
-/*this function repurposes struct coord to store dimension data:
-  x is the width, y is (useless lawl), z is the depth. its purpose is
-  to calculate the room dimensions for any given quadtree quadrant.
-  min offset is at least 5% (int) of the size of the given area
-  struct coord bottomleft, struct coord topright*/
-struct coord calculateDimensions(struct coord a, struct coord b, int maxOffset) {
-	struct coord dimension;
-	int xoffset = ((int)((float)(b.x - a.x))*(0.1)) + (rand() % (maxOffset+1)); //killme
-	int zoffset = ((int)((float)(b.z - a.z))*(0.1)) + (rand() % (maxOffset+1));
-	//////printf("offsets: %d %d\n", xoffset, zoffset);
-	dimension.x = (b.x - a.x) - xoffset; //width
-	dimension.y = 8; //these can be further randomized/improved
-	dimension.z = (b.z - a.z) - zoffset;
-	return dimension;
-} //FIXME: deprecated due to three rows
+} //FIXME: not deprecated! :)
 
 struct coord getRandomDimensions(int min, int max) {
 	//this is the brain damaged version of the above function. rooms cant exceed max size in any dimension.
@@ -539,128 +656,23 @@ struct coord getRandomDimensions(int min, int max) {
 } //x = w; y = h; z = l
 
 int meshVisibilityCheck(int id){
-	const static float factor = 15.0;
-	float xpos, yrot, zpos;
-	float mobX = getx(id);
-	float mobZ = getz(id);
-	int visible = getVisible(id);
-	float mvx;
-	float mvy;
-	float mvz;
-	getViewOrientation(&mvx, &mvy, &mvz);
-	getViewPosition(&xpos, &yrot, &zpos);
-
-	float xRot = (mvx / 180.0 * M_PI);
-	float yRot = (mvy / 180.0 * M_PI);
-
-	float x = sin(yRot)+factor; 
-	float z = cos(yRot)+factor;
-	float x1 = cos(yRot)+8; 
-	float z1 = sin(yRot)+8; 
-
-	xpos = -xpos; //decalvertize!
-	zpos = -zpos;
-
-	float fvisX = xpos;
-	float fvisZ = zpos;
-	float lvisX = xpos;
-	float lvisZ = zpos;
-	float lcornerX = xpos;
-	float lcornerZ = zpos;
-	float rvisX = xpos;
-	float rvisZ = zpos;
-	float rcornerX = xpos;
-	float rcornerZ = zpos;
-
-	//printf("vis: %d mobx: %f moby: %f, xpos: %f, zpos: %f\n", visible, mobX, mobZ, xpos, zpos);
-	short facing = (int)(yRot/1.5)%4;
-
-	if (facing==0){
-		fvisZ = fvisZ - z;
-		lvisX = lvisX + x1;
-		rvisX = rvisX - x1;
-		lcornerX = lvisX;
-		lcornerZ = fvisZ;
-		rcornerX = rvisX;
-		rcornerZ = fvisZ;
-
-		if (mobX > rvisX && mobX < lvisX){
-			if (mobZ < zpos && mobZ > fvisZ){
-				if (!visible){
-					printf("Cow mesh #%d is visible\n",id);
-					drawMesh(id);
-				}
-			}
-		}else if (visible){
-			printf("Cow mesh #%d is not visible\n",id);
-			hideMesh(id);
-		}
-
-	}else if (facing==1){
-		fvisX = fvisX + x;
-		lvisZ = lvisZ + z1;
-		rvisZ = rvisZ - z1;    
-		lcornerX = fvisX;
-		lcornerZ = lvisZ;
-		rcornerX = fvisX;
-		rcornerZ = rvisZ;  
-
-		if (mobX> xpos && mobX < fvisX){
-			if (mobZ >rvisZ && mobZ < lvisZ){
-				if (!visible){
-					printf("Cow mesh #%d is visible\n", id);
-					drawMesh(id);
-				}
-			}
-		}else if (visible){
-			printf("Cow mesh #%d is not visible\n", id);
-			hideMesh(id);
-		}
-	}else if (facing==2){
-		fvisZ = fvisZ + z;
-		lvisX = lvisX - x1;
-		rvisX = rvisX + x1;
-		lcornerX = lvisX;
-		lcornerZ = fvisZ;
-		rcornerX = rvisX;
-		rcornerZ = fvisZ;    
-
-		if (mobX> lvisX && mobX < rvisX){
-			if (mobZ> zpos && mobZ < fvisZ){
-				//up
-				if (!visible){
-					printf("Cow mesh #%d is visible\n", id);
-					drawMesh(id);
-				}
-			}
-		}else if (visible){
-			printf("Cow mesh #%d is not visible\n", id);
-			hideMesh(id);
-		}
-
-	} else if (facing==3){
-		fvisX = fvisX - x;
-		lvisZ = lvisZ - z1;
-		rvisZ = rvisZ + z1;
-		lcornerX = fvisX;
-		lcornerZ = lvisZ;
-		rcornerX = fvisX;
-		rcornerZ = rvisZ;   
-
-		if (mobX > fvisX && mobX < xpos){
-			if (mobZ > lvisZ && mobZ < rvisZ){
-				if (!visible){
-					printf("Cow mesh #%d is visible\n",id);
-					drawMesh(id);
-				}
-			}
-		}else if (visible){
-			printf("Cow mesh #%d is not visible\n",id);
+	//printf("mesh #%d's active status is (%d) and presence is (%d)\n", getActive(id), getPresent(id));
+	if (getActive(id) && getPresent(id)) {
+		struct coord mob = getMobCoord(id);
+		const double viewDistance = 40.0;
+		int visible = SphereInFrustum((float)mob.x, (float)(mob.y + 1), (float)mob.z, 1.5); //we'll just pretend y doesnt exist
+		if (getDistance2d(curr_viewpos, mob) > viewDistance) {
+			visible = 0;
+		} //if the object is too far we'll say its not visible
+		if (visible) {
+			//printf("Cow mesh #%d is visible\n",id);
+			drawMesh(id);
+		} else if (!visible){ //TODO: performance will tank if tehres tons of mobs even if they're invisible won't it?
+			//printf("Cow mesh #%d is not visible\n",id);
 			hideMesh(id);
 		}
 	}
 }
-
 
 bool proximityCheck(int pindex, int margin) { //idc idgaf that its bad this is not my fault i just wanted qtree
 	bool result = true; //yes i know this doesnt account for the dimensions of point 2 but dont fuCking worry ab it
@@ -677,7 +689,7 @@ bool proximityCheck(int pindex, int margin) { //idc idgaf that its bad this is n
 	} else {longer_side = dimensions[pindex].z;} //the longer side len / 2 will be used as the radius
 	int r1 = (longer_side / 2) + margin;
 	//TODO: optimally, this would only check adjacents, but i dont have time to do that right now
-	for(int i = 0; i < NUMROOMS; i++) {
+	for(int i = meshIndex; i < meshIndex + NUMROOMS; i++) {
 		if (!(i == pindex)) {
 			struct coord point2_max;
 			int longer_side_r2 = 0;
@@ -699,66 +711,12 @@ bool proximityCheck(int pindex, int margin) { //idc idgaf that its bad this is n
 	return result;
 } //FIXME: no longer deprecated :)
 
-bool proximityCheck2(int pindex, int margin) { //idc idgaf that its bad this is not my fault i just wanted qtree
-	bool result = true; //yes i know this doesnt account for the dimensions of point 2 but dont fuCking worry ab it
-	if (pindex == 0) return true;
-	for(int i = 0; i < pindex; i++) {
-		struct coord point1_max;
-		struct coord point2_max;
-		float r = 0.0;
-		float r2 = 0.0;
-		point1_max.x = points[pindex].x + dimensions[pindex].x;
-		point1_max.y = QTHEIGHT;
-		point1_max.z = points[pindex].z + dimensions[pindex].z;
-		point2_max.x = points[i].x + dimensions[i].x;
-		point2_max.y = QTHEIGHT;
-		point2_max.z = points[i].z + dimensions[i].z; 
-		struct coord center1 = getMidpoint(points[pindex], point1_max); //this is the center of our first;
-		struct coord center2 = getMidpoint(points[i], point2_max);
-		//////printf("a: %d %d %d b: %d %d %d\n", points[pindex].x, points[pindex].y, points[pindex].z, points[i].x, points[i].y, points[i].z);
-		if (dimensions[pindex].x > dimensions[pindex].z) {
-			r = ((float)(dimensions[pindex].x + margin)) / 2.0 + (float)margin;
-		} else {r = ((float)(dimensions[pindex].z + margin)) / 2.0 + (float)margin;} //the longer side len / 2 will be used as the radius
-		if(dimensions[i].x > dimensions[i].z) {
-			r2 = ((float)(dimensions[i].x)) / 2.0 + (float)margin;
-		} else {r2 = ((float)(dimensions[i].z)) / 2.0 + (float)margin;}
-		//////printf("%f %f %lf\n", r, r2, sqrt((float)(((center2.x - center1.x) * (center2.x - center1.x)) + ((center2.z - center2.z) * (center2.z - center1.z)))));
-		//if ((((points[i].x - center.x) * (points[i].x - center.x)) + ((points[i].z - center.z) * (points[i].z - center.z))) < (((longer_side + margin)/2) * ((longer_side +  margin)/2))) {
-		if (sqrt((float)(((center2.x - center1.x) * (center2.x - center1.x)) + ((center2.z - center2.z) * (center2.z - center1.z)))) < (r + r2)) {
-			//if the distance between the two centers is less than the sum of their radii, they intersect
-			result = false;
-			//////printf("pc failed\n");
-			break;
-		}
-	}
-	return result;
-} //FIXME: deprecated: i dont even care
-
-
 void createDoor(struct coord a, int w, int h) {
 	for (int dw = a.x; dw < a.x + w; dw++) {
 		for (int dh = a.y + 1; dh < a.y + h; dh++) {
 			world[dw][dh][a.z] = 0;
 		}
 	}
-} //FIXME: deprecated: bad
-
-void drawCorridor(struct coord a, int l, int w, int h, GLbyte colour) {
-	GLbyte drawcolour = colour;
-	for(int floorx = a.x; floorx <= a.x + w; floorx++) {
-		for (int floorz = a.z; floorz <= a.z + l; floorz++) {
-			world[floorx][a.y][floorz] = colour;
-			world[floorx][a.y + h][floorz]; //plus or minus uhhh
-		}
-	}
-	for(int wally = a.y; wally <= a.y + h; wally++) {
-		for (int wallz = a.z; wallz <= a.z + l; wallz++) {
-			world[a.x][wally][wallz] = colour + 1; //leftwall
-			world[a.x + w][wally][wallz] = colour + 1; //right wall
-		}
-	} //O(2n^2). idk if O is the right y but you know
-	//createDoor(a, w, h);//intro door
-	//createDoor(offsetPoint(a, 0, 0, l-1), w, h); //exit door
 } //FIXME: deprecated: bad
 
 void joinRooms(int r1_index, int r2_index, const int w, const int h, GLbyte colour) {
@@ -880,36 +838,14 @@ float perlin(float x, float y) {
 	return value;
 }
 
-int loadMaze(int which) { //which is experimental
-	FILE* prev;
-	//nothing is real. it was all a dream go back to sleep
-}
-
 void genMaze() {
 	//just read i need to generate the maze in three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
-	//three rows
+	//three rows >:(
 	//imagine making a perfectly fine quadtree then being forced to mutilate it into "three rows" waht a stupid clause
-		
+	setUserColour(24, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0); //for up stairs
+	setAssignedTexture(24, 31);
+	setUserColour(25, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0); //for down stairs
+	setAssignedTexture(25, 32); //please
 	/*in order to generate "three rows", i will do the following instead of just normally using the quadtree as described in lecture
 	  (i really do not understand why you'd detail a really nice method like quadtree and then make everyone generate a completely
 	  different structure. seems pretty mean-spirited to me and i really wish i could just generate 9 rooms in any way i want): i will
@@ -929,7 +865,7 @@ void genMaze() {
 			
 	bool valid = false; //✨✨✨ FIXME: deprecated, remnant of quadtree implementation pre-three rows
 
-	struct coord stairs[2]; //0 is u; 1 is down
+	struct coord stairs[MAX_FLOORS * 2]; //0 is u; 1 is down
 	struct coord spawn;
 
 	const int w = 5;
@@ -947,27 +883,27 @@ void genMaze() {
 				}
 			}
 		}
-		//////printf("generation attempt\n");
+		printf("generation attempt\n");
 		//the following code generates 9 rooms in 9 zones with padding so they don't intersect.
-		points[0] = generatePoint(0, borderx1 - padding, 0, borderz1 - padding);
-		dimensions[0] = getRandomDimensions(min_d, max_d);
-		points[1] = generatePoint(borderx1 - padding, borderx2 - padding, 0, borderz1 - padding);
-		dimensions[1] = getRandomDimensions(min_d, max_d);
-		points[2] = generatePoint(borderx2 + padding, WORLDX - max_d, 0, borderz1 - padding);
-		dimensions[2] = getRandomDimensions(min_d, max_d);
-		points[3] = generatePoint(0, borderx1 - padding, borderz1 + padding, borderz2 - padding);
-		dimensions[3] = getRandomDimensions(min_d, max_d);
-		points[4] = generatePoint(borderx1, borderx2, borderz1, borderz2);
-		dimensions[4] = getRandomDimensions(min_d, max_d);
-		points[5] = generatePoint(borderx2 + padding, WORLDX - max_d, borderz1 + padding, borderz2 - padding);
-		dimensions[5] = getRandomDimensions(min_d, max_d);
-		points[6] = generatePoint(0, borderx1 - padding, borderz2 + padding, WORLDZ - max_d);
-		dimensions[6] = getRandomDimensions(min_d, max_d);
-		points[7] = generatePoint(borderx1 + padding, borderx2 - padding, borderz2 + padding, WORLDZ - max_d);
-		dimensions[7] = getRandomDimensions(min_d, max_d);
-		points[8] = generatePoint(borderx2 + padding, WORLDX - max_d, borderz2 + padding, WORLDZ - max_d);
-		dimensions[8] = getRandomDimensions(min_d, max_d); //"14 if statements" type beat because you hate quadtrees @dcalvert
-		for (int i = 0; i < NUMROOMS; i++) {
+		points[meshIndex + 0] = generatePoint(0, borderx1 - padding, 0, borderz1 - padding);
+		dimensions[meshIndex + 0] = getRandomDimensions(min_d, max_d);
+		points[meshIndex + 1] = generatePoint(borderx1 - padding, borderx2 - padding, 0, borderz1 - padding);
+		dimensions[meshIndex + 1] = getRandomDimensions(min_d, max_d);
+		points[meshIndex + 2] = generatePoint(borderx2 + padding, WORLDX - max_d, 0, borderz1 - padding);
+		dimensions[meshIndex + 2] = getRandomDimensions(min_d, max_d);
+		points[meshIndex + 3] = generatePoint(0, borderx1 - padding, borderz1 + padding, borderz2 - padding);
+		dimensions[meshIndex + 3] = getRandomDimensions(min_d, max_d);
+		points[meshIndex + 4] = generatePoint(borderx1, borderx2, borderz1, borderz2);
+		dimensions[meshIndex + 4] = getRandomDimensions(min_d, max_d);
+		points[meshIndex + 5] = generatePoint(borderx2 + padding, WORLDX - max_d, borderz1 + padding, borderz2 - padding);
+		dimensions[meshIndex + 5] = getRandomDimensions(min_d, max_d);
+		points[meshIndex + 6] = generatePoint(0, borderx1 - padding, borderz2 + padding, WORLDZ - max_d);
+		dimensions[meshIndex + 6] = getRandomDimensions(min_d, max_d);
+		points[meshIndex + 7] = generatePoint(borderx1 + padding, borderx2 - padding, borderz2 + padding, WORLDZ - max_d);
+		dimensions[meshIndex + 7] = getRandomDimensions(min_d, max_d);
+		points[meshIndex + 8] = generatePoint(borderx2 + padding, WORLDX - max_d, borderz2 + padding, WORLDZ - max_d);
+		dimensions[meshIndex + 8] = getRandomDimensions(min_d, max_d); //"14 if statements" type beat because you hate quadtrees @dcalvert
+		for (int i = meshIndex; i < meshIndex + NUMROOMS; i++) {
 			createRoom(points[i], dimensions[i].z, dimensions[i].x, dimensions[i].y, 18); //lwh args are out of order oops
 			//oh, drawing the map like this is gonna be tricky to do with fog of war isnt it...
 			if (displayMap == 1) draw2Dbox(points[i].x, points[i].y, points[i].x + dimensions[i].x, points[i].y + dimensions[i].y); 
@@ -978,7 +914,7 @@ void genMaze() {
 			random_things[i] = randomBlockPos;
 			world[randomBlockPos.x][randomBlockPos.y + 1][randomBlockPos.z] = 23;
 		}
-		for(int c = 0; c < NUMROOMS; c++) {
+		for(int c = meshIndex; c < meshIndex + NUMROOMS; c++) {
 			if((points[c].x + dimensions[c].x) >= WORLDX || (points[c].z + dimensions[c].z) >= WORLDZ || !proximityCheck(c, 1)) {
 				generationSuccess = false;
 				break;
@@ -986,13 +922,14 @@ void genMaze() {
 		} //the check loop. could ideally be integrated elsewhere but i don't care i don't ahve time to think too much about these things
 	} while(!generationSuccess);
 	//also, if everything is good to go, generate 2 stairs in random rooms, but not the same room:
-	int ds = getRandomNumber(0, NUMROOMS-1); //short for "downstairs", it's the index of the room that this staircase will be in
-	int us = getRandomNumber(0, NUMROOMS-1); //    "      "upstairs",                           "
-	if(ds == us) {us = (ds + us) % NUMROOMS;}
+	//printf("meshindex is %d\n", meshIndex);
+	int ds = meshIndex + getRandomNumber(0, NUMROOMS-1); //short for "downstairs", it's the index of the room that this staircase will be in
+	int us = meshIndex + getRandomNumber(0, NUMROOMS-1); //    "      "upstairs",                           "
+	if(ds == us) {us = meshIndex + ((ds + us) % NUMROOMS);}
 	struct coord dspoint = generatePoint(points[ds].x+1, points[ds].x + dimensions[ds].x - 1, points[ds].z + 1, points[ds].z + dimensions[ds].z - 1);
 	struct coord uspoint = generatePoint(points[us].x+1, points[us].x + dimensions[us].x - 1, points[us].z + 1, points[us].z + dimensions[us].z - 1);
-	stairs[0] = uspoint;
-	stairs[1] = dspoint;
+	stairs[STAIRS_UP] = uspoint;
+	stairs[STAIRS_DOWN] = dspoint;
 	world[stairs[STAIRS_UP].x][stairs[STAIRS_UP].y][stairs[STAIRS_UP].z] = 24; //creating up
 	world[stairs[STAIRS_DOWN].x][stairs[STAIRS_DOWN].y][stairs[STAIRS_DOWN].z] = 25; //creating down
 	
@@ -1006,21 +943,25 @@ void genMaze() {
 	it's best i move on from that. also deleted a bunch of really angry comments. keeping the above one though*/
 		
 	//the corridors are just rooms LLOL iof u really THINK about it
-	for(int i = 0; i < (NUMROOMS/3) * 2; i++) { //i think my math on numrooms/3 * 2 is wrong but tbh in this case we want 6 so it works (9/3 * 2 = 6)
+	for(int i = meshIndex; i < meshIndex + ((NUMROOMS/3) * 2); i++) { //i think my math on numrooms/3 * 2 is wrong but tbh in this case we want 6 so it works (9/3 * 2 = 6)
 		joinRooms(i, i+(NUMROOMS/3), w, h, colour); //3 would be NUMROWS if calvert's generation was well-advised but i fear he may change it any time
 	}
 	/*now let's connect the rows to make an H joining shape:
 	this uses a "jump table" of sorts because i am quite lazy right now and couldn't think of a mathematically
-	better way to do "choose two".*/
-	int corridors[2][3][2] = {{{0, 1}, {3, 4}, {6, 7}}, {{1, 2}, {4, 5}, {7, 8}}};
+	better way to do "choose two" in order to pick the 2 sets of rooms to join (by their index).*/
+	int corridors[2][3][2] = {{{0 + meshIndex, 1 + meshIndex},
+							{3 + meshIndex, 4 + meshIndex},{6 + meshIndex, 7 + meshIndex}},
+							{{1 + meshIndex, 2 + meshIndex},
+							{4 + meshIndex, 5 + meshIndex}, {7 + meshIndex, 8 + meshIndex}}};
 	//those are the valid pairs, we pick one pair from each set:
 	int chosenindex = getRandomNumber(0, 2);
-	hjoined[0][0] = corridors[0][chosenindex][0];
-	hjoined[0][1] = corridors[0][chosenindex][1];
+	
+	hjoined[SIDE_A][SIDE_A] = corridors[0][chosenindex][0]; //hjoined [0][x] contains the first pair of rooms, [1][x] the second
+	hjoined[SIDE_A][SIDE_B] = corridors[0][chosenindex][1];
 	joinRooms(corridors[0][chosenindex][0], corridors[0][chosenindex][1], w, h, colour);
 	chosenindex = getRandomNumber(0, 2);
-	hjoined[1][0] = corridors[1][chosenindex][0];
-	hjoined[1][1] = corridors[1][chosenindex][1];
+	hjoined[SIDE_B][SIDE_A] = corridors[1][chosenindex][0];
+	hjoined[SIDE_B][SIDE_B] = corridors[1][chosenindex][1];
 	joinRooms(corridors[1][chosenindex][0], corridors[1][chosenindex][1], w, h, colour);
 	//instead of using functions, i dont want to. i just dont care. this is so borked idc idgaf why three rows dude just why
 	//three rows
@@ -1029,8 +970,8 @@ void genMaze() {
 	//createPlayer(0, x-5, -y, z-5, 0.0);
 	//TODO: change back after debug to "us" - what did i mean by this. i forget which var us is. STAIRS_UP?
 	
-	spawn = offsetPoint(points[us], dimensions[us].x / 2, 3, dimensions[us].z / 2); //spawn beside the up stairs
-	
+	//printf("us = %d, ds = %d\n", us, ds);
+	spawn = offsetPoint(points[us], (dimensions[us].x / 2) + getRandomNumber(1,3), 3, (dimensions[us].z / 2) + getRandomNumber(1,3)); //spawn beside the up stairs
 	////printf("attemptint to spawn er in %d %d %d\n", -spawn.x, -spawn.y, -spawn.z);
 	//and now, we write the maze's info to the lowestmost un-written index
 	int seek = 0;
@@ -1041,16 +982,23 @@ void genMaze() {
 	//STOP. cow generation time.
 	//it pains me to make another NUMROOMS length for loop, but I can't generate the cows until I know all the rooms are good...
 	
-	for (int cow_room = 0; cow_room < NUMROOMS; cow_room++) {
+	for (int cow_room = meshIndex; cow_room < (currfloor * NUMROOMS); cow_room++) { //FIXME: INFROOMS could be modded to support infinite rooms, but thats not required right now
 		//they're all cows, you can't stop me. the cow model is just too cute
+		//edit: no longer are they all cows. in fact, none of them are cows. in memoria nominis vaccarum ego servabo
+
+		int mesh_identity = getRandomNumber(1,3);
+
+		//we need to move the fish up more cuz if we dont it spawns in the ground lol
 		struct coord cow_pos = {.x = points[cow_room].x + (dimensions[cow_room].x/2),
-								.y = points[cow_room].y + (dimensions[cow_room].y/2),
-								.z = points[cow_room].z + (dimensions[cow_room].z/2)};
-		//printf("cow #%d generating at %d %d %d\n", meshIndex, cow_pos.x, cow_pos.y, cow_pos.z);
-		setMeshID(meshIndex, 0, (float)cow_pos.x,
-							   (float)cow_pos.y, //he flies
-							   (float)cow_pos.z); //don't forget to de-calvertize
-		meshIndex += 1;
+								.y = QTHEIGHT + (mesh_identity == 1 ? 2 : 1),
+								.z = points[cow_room].z + (dimensions[cow_room].z/2)}; 
+
+		printf("Generating 'cow' #%d at %d, %d, %d.\n", cow_room, cow_pos.x, cow_pos.y, cow_pos.z);
+
+		//cow_room actually also represents the index of the mesh, conveniently. the math just checks out, maybe i should rename it ?
+		setMeshID(cow_room, mesh_identity, (float)cow_pos.x,
+							   				(float)cow_pos.y, //he flies
+							   				(float)cow_pos.z); //don't forget to de-calvertize
 	}
 
 	for(int sx=0; sx<WORLDX; sx++) {
@@ -1074,19 +1022,110 @@ bool check_timing(time_t target_time, time_t current_time) {
 	return (current_time >= target_time) ? true : false;
 }
 
+void plant(int id) {
+	if (getVisible(id) && getPresent(id) && getActive(id)) {
+		bool adj = adjacencyCheck(curr_viewpos, getMobCoord(id));
+		//printf("%d adjacent: %d\n", id, adj);
+		if (adj) {
+			if(attack_check()) {
+				printf("The plant has struck its target.\n");
+			}
+			else {
+				printf("The plant whiffed. Hard.\n");
+			}
+		}
+	}
+}
+
+void responsive(int id) {
+	if (getVisible(id) && getPresent(id) && getActive(id)) {
+		struct coord mob = getMobCoord(id);
+		int mob_room = determineRoom(getMobCoord(id));
+		if(determineRoom(curr_viewpos) == mob_room/* && mob_room != -1*/) {
+			//printf("playerroom = %d, mobroom = %d\n", determineRoom(-1), determineRoom(id));
+			setChase(id, true); //doesnt really matter if this gets set true when they're both in a hallway
+		}
+		if (adjacencyCheck(mob, curr_viewpos)) {
+			//printf("adj? %d %d, %d %d\n", mob.x, mob.z, curr_viewpos.x, curr_viewpos.z);
+			if(attack_check()) {
+				printf("The shark has successfully chomped. %d\n", id);
+			}
+			else {
+				printf("Epic fail: the shark missed the chomp! %d\n", id);
+			}
+		} else if (getChase(id)) {
+			enum direction dir = determineDirectionToDestination(id, curr_viewpos);
+			moveInDirection(id, dir);
+		}
+	}
+}
+
+void search(int id) {
+	//this mob actually moves around even while invisible, while it's not in chase mode:
+	if (getPresent(id) && getActive(id)) {
+		setChase(id, (bool)getVisible(id));
+		bool chasing = getChase(id);
+		struct coord mob = getMobCoord(id);
+		if (chasing) { //if the player is in our sights we chase like normal
+			if (adjacencyCheck(mob, curr_viewpos)) {
+				//printf("adj? %d %d, %d %d\n", mob.x, mob.z, curr_viewpos.x, curr_viewpos.z);
+				if(attack_check()) {
+					printf("The bat. %d\n", id);
+				}
+				else {
+					printf("bat sux! %d\n", id);
+				}
+			} else {
+				enum direction dir = determineDirectionToDestination(id, curr_viewpos);
+				moveInDirection(id, dir);
+			}
+		} else { //otherwise, we meander around
+			int dest = getDestination(id);
+			if(dest == -1 || (points[dest].x + 2 == mob.x && points[dest].z + 2 == mob.z)) { //NOTE: +2 so it doenst just ram into walls!!
+				//if there's no destination or we're at the destination, pick a new one:
+				int choice = getRandomNumber(0, NUMROOMS-1);
+				dest = choice;
+				setDestination(id, choice); //picks the index of the room it's going to randomly path to the door of
+			}
+			enum direction dir = determineDirectionToDestination(id, offsetPoint(points[dest], 2, 0, 2)); //to accomodate the +2
+			moveInDirection(id, dir);
+		}
+	}
+}
+
+void activate_ai(int id) {
+	if (getActive(id)) {
+		switch(getMeshNumber(id)) { //1 is fish. 2 is bat. 3 is cactus
+			case 1:
+				responsive(id);
+				break;
+			case 2:
+				search(id);
+				break;
+			case 3:
+				plant(id);
+				break;
+			default:
+				printf("Possible error in AI movement");
+		}
+	}
+}
+
 /*** update() ***/
 /* background process, it is called when there are no other events */
 /* -used to control animations and perform calculations while the  */
 /*  system is running */
 /* -gravity must also implemented here, duplicate collisionResponse */
 void update() {
-	int i, j, k = 0;
-	float* la = NULL;
+	/*for (int fuck = 0; fuck < NUMROOMS; fuck++) {
+		printf("Cow #%d's visibility is %d\n", fuck, getVisible(fuck));
+	}*/
 	float x, y, z = 0.0;
 	float rx, ry, rz = 0.0;
 	/* sample animation for the testworld, don't remove this code */
 	/* demo of animating mobs */
 	getViewPosition(&x, &y, &z);
+	ExtractFrustum();
 	////printf("meshindex: %d\n", meshIndex);
 	if (testWorld) {
 
@@ -1206,10 +1245,40 @@ void update() {
 		if(currfloor != 0 && timings[2] == 0L) {timings[2] = currtime + (time_t)2000L;}
 		/* your code goes here */
 		//why would i put it here i want gravity to exist on the test world too?
-		setOldViewPosition(x,y,z); //i'm like 90% sure this should be called before gvp(i i i)
 		getViewPosition(&x, &y, &z);
+		if (currfloor != 0 &&
+			(curr_viewpos.x != -(int)x || curr_viewpos.z != -(int)z)) { //turn is also forfeit if the player attacked but we'll handle that later
+			//AI CAN ACT
+			//printf("ai should be triggered now! viewpos moved from %d to %d or %d to %d\n", curr_viewpos.x, -(int)x, curr_viewpos.z, -(int)z);
+			curr_viewpos.x = -(int)x;
+			curr_viewpos.y = -(int)y;
+			curr_viewpos.z = -(int)z;
+			//TODO: AI TURN ACTIONS!
+			for (int meshid = meshIndex; meshid < (currfloor * NUMROOMS); meshid++) { //FIXME: INFROOMS
+				if (getActive(meshid)) {
+					activate_ai(meshid);
+					mobCollisionResponse(meshid);
+				}
+			}
+			for (int id = meshIndex; id < meshIndex + NUMROOMS; id++) { //getpresent should never be false here
+				if (adjacencyCheck(curr_viewpos, getMobCoord(id)) && getActive(id) && getPresent(id)) {
+					if(attack_check()) {
+						printf("The player has mercilessly killed another being.\n");
+						setActive(id, false);
+						setChase(id, false);
+					}
+					else {
+						printf("The creature that the player was attempting to slay lives on another day.\n");
+					}
+					getOldViewPosition(&x, &y, &z);
+					setViewPosition(x, y, z);
+					curr_viewpos.x = -(int)x;
+					curr_viewpos.y = -(int)y;
+					curr_viewpos.z = -(int)z;
+				}
+			}
+		}
 		getViewOrientation(&rx, &ry, &rz);
-		////printf("viewpos %f %f %f\n", x, y, z);
 		int noncalvertx = -(int)x;
 		int noncalverty = -(int)y;
 		int noncalvertz = -(int)z;
@@ -1224,8 +1293,23 @@ void update() {
 					if (currfloor == 0) {
 						////printf("Trying to ascend to heaven: not allowed, due to furry.\nAlso up staircase on overworld, fix.\n");
 					} else {
+						prevfloor = currfloor;
 						currfloor -= 1;
+						meshIndex = (currfloor - 1) * NUMROOMS;
 						on_stairs = true;
+						if (meshIndex >= 0) {   //prevents negative indices being accessed
+							for (int i = meshIndex + NUMROOMS; i < meshIndex + (2 * NUMROOMS); i++) {
+								//printf("hiding mob #%d\n", i);
+								hideMesh(i); //calvert's mob management system makes less sense than string theory
+								setPresent(i, false);
+							}
+						} else if (meshIndex == 0) {   //prevents negative indices being accessed
+							for (int i = 0; i < NUMROOMS; i++) { //theres a way to get the math to work right thats classy but its 5am
+								//printf("hiding mob #%d\n", i);
+								hideMesh(i); //calvert's mob management system makes less sense than string theory
+								setPresent(i, false);
+							}
+						}
 					}
 				}
 			}
@@ -1237,20 +1321,23 @@ void update() {
 				if (floors[currfloor]->stairs[STAIRS_DOWN].y == noncalverty - 1) {
 					////printf("y-1 (maybe + 1?) matchd\n");
 					////printf("ok, loading downstairs\n");
+					prevfloor = currfloor;
 					currfloor += 1;
+					meshIndex = (currfloor - 1) * NUMROOMS; //floor1 is 0, floor2 is 9
+					//printf("MI %d\n", meshIndex);
 					on_stairs = true;
+					if (meshIndex > 0) {   //prevents negative indices being accessed
+						for (int i = meshIndex - NUMROOMS; i < meshIndex; i++) {
+							//printf("hiding mob #%d\n", i);
+							hideMesh(i); //calvert's mob management system makes less sense than string theory
+							setPresent(i, false);
+						}
+					}
 				}
 			}
 		} //i've been wrong all alonG! could refactor! hope it works anyways though! ahha
-		if (on_stairs) {
-			if (!(floors[currfloor])) { //"currfloor" here actually is the index of the floor we're loading currently.
-				////printf("No deeper maze exists. creating one! Or, there has been some catastrophe\n");
-				if (meshIndex != 0) {
-					for (int i = meshIndex - 1; i >= meshIndex - NUMROOMS; i--) {
-						////printf("hiding mobid %d\n", i);
-						hideMesh(i); //calvert's mob management system makes less sense than string theory
-					}
-				}
+		if (on_stairs) { //"currfloor" here actually is the index of the floor we're loading currently
+			if (!(floors[currfloor])) { //if no maze exists, generate one!
 				genMaze();
 			}
 			else {
@@ -1258,16 +1345,16 @@ void update() {
 				for(int lx = 0; lx < WORLDX; lx++) {
 					for (int ly = 0; ly < WORLDY; ly++) {
 						for (int lz = 0; lz < WORLDZ; lz++) {
-							if (meshIndex != 0) {
-								for (int i = meshIndex - 1; i >= meshIndex - NUMROOMS; i--) {
-									////printf("hiding mobid %d\n", i);
-									hideMesh(i); //calvert's mob management system makes less sense than string theory
-								}
-								if (currfloor > 1) {
-									meshIndex -= NUMROOMS;
-								}
-							}
 							world[lx][ly][lz] = floors[currfloor]->world[lx][ly][lz];
+						}
+					}
+				}
+				if (prevfloor != 1) { //this is in a weird spot because we hide the current mobs every level change, but only load mobs when loading
+					for (int i = meshIndex; i < meshIndex + NUMROOMS; i++) {
+						//printf("showing mob #%d if it's alive\n", i);
+						if (getActive(i)) {
+							drawMesh(i); //calvert's mob management system makes less sense than string theory
+							setPresent(i, true);
 						}
 					}
 				}
@@ -1275,9 +1362,12 @@ void update() {
 			//remember to calvertize (make negative) the positions first
 			////printf("okay hopefully? %f %f %f\n", -(float)floors[currfloor]->spawn.x,-(float)floors[currfloor]->spawn.y,-(float)floors[currfloor]->spawn.z);
 			setViewPosition(-(float)floors[currfloor]->spawn.x,-(float)floors[currfloor]->spawn.y,-(float)floors[currfloor]->spawn.z);
+			curr_viewpos.x = floors[currfloor]->spawn.x;
+			curr_viewpos.y = floors[currfloor]->spawn.y;
+			curr_viewpos.z = floors[currfloor]->spawn.z;
 		}
 		else {
-			if(plsnocrash && usegravity){
+			if(world_inited && usegravity){
 				if(world[-(int)x][-(int)(y+1)][-(int)z] == 0) {
 					////////printf("grabity\n");
 					setViewPosition(x,y+0.1,z);
@@ -1285,12 +1375,12 @@ void update() {
 				}
 				setPlayerPosition(0, -x-1, -y, -z-1, -ry);
 			}
-		} //FIXME: jank
+		} //jank
 		//i know the following is bad, but i still want a quadtree and its february
 		static float cloud_offset = 0.0;
 		float divisor = 10;
 		static int movement_dir = 0;
-		//FIXME: these are incredibly laggy and could be done better LAWL
+		//these are incredibly laggy and could be done better LAWL
 		if (currfloor == 0 && check_timing(timings[0], currtime)) {
 			cloud_offset = cloud_offset + 0.1;
 			//uh isn't this going to cause some fucking EPIC lag
@@ -1317,23 +1407,25 @@ void update() {
 		if(check_timing(timings[2], currtime)) { //yeah i think currtime can just be obtained in the function... why didnt i do that...
 			movement_dir = !movement_dir;
 			timings[2] = (time_t)0;
-		}
-		if (currfloor != 0 && check_timing(timings[1], currtime)) { //translate the meshes
+		} //rudimentary mob movement
+		if (currfloor != 0 && check_timing(timings[1], currtime)) {
 			for (int i = meshIndex - 1; i >= meshIndex - NUMROOMS; i--) {
 				meshVisibilityCheck(i);
-				if (getVisible(i)) {
-					float xpos = getx(i);
-					float ypos = gety(i);
-					float zpos = getz(i);
-					if (movement_dir == 0) {
-						setTranslateMesh(i, xpos + 0.01, ypos, zpos);
-					}
-					else {
-						setTranslateMesh(i, xpos - 0.01, ypos, zpos);
+				if (getMeshNumber(i) == 1 && !getChase(i)) { //translate the meshes if they're un-activated fish
+					if (getVisible(i)) {
+						float xpos = getx(i);
+						float ypos = gety(i);
+						float zpos = getz(i);
+						if (movement_dir == 0) {
+							setTranslateMesh(i, xpos + 0.01, ypos, zpos);
+						}
+						else {
+							setTranslateMesh(i, xpos - 0.01, ypos, zpos);
+						}
 					}
 				}
 			}
-			timings[1] == 0;
+			timings[1] = 0;
 		}
 	}
 }
@@ -1378,7 +1470,7 @@ int main(int argc, char** argv) {
 				for(k=0; k<WORLDZ; k++)
 					world[i][j][k] = 0;
 
-		plsnocrash = true;
+		world_inited = true;
 		/* some sample objects */
 		/* build a red platform */
 		for(i=0; i<WORLDX; i++) {
@@ -1412,10 +1504,6 @@ int main(int argc, char** argv) {
 		/* these are animated in the update() function */
 		createMob(0, 50.0, 25.0, 52.0, 0.0);
 		createMob(1, 50.0, 25.0, 52.0, 0.0);
-		struct coord p1; struct coord p2;
-		p1.x = 0; p1.y = 50; p1.z = 10;
-		p2.x = 10; p2.y = 53; p2.z = 20; 
-		drawCorridor(p1, 10, 6, 8, 3);
 		/* create sample player */
 		//createPlayer(0, 52.0, 27.0, 52.0, 0.0);
 		//no. he's creepy
@@ -1512,12 +1600,8 @@ int main(int argc, char** argv) {
 	} else {
 		/* your code to build the world goes here */
 		
-		plsnocrash = true;
-		struct qtNode* head = calloc(1, sizeof(struct qtNode));
-		struct coord origin; origin.x = 0; origin.y = QTHEIGHT; origin.z = 0;
-		struct coord limit; limit.x = WORLDX; limit.y = QTHEIGHT; limit.z = WORLDZ;
-		initQuadtree(head, origin, limit);
-		struct qtNode* target = head;
+		world_inited = true;
+
 		for(i=0; i<WORLDX; i++) {
 			for(j=0; j<WORLDY; j++) {
 				for(k=0; k<WORLDZ; k++) {
@@ -1530,24 +1614,24 @@ int main(int argc, char** argv) {
 		setUserColour(17, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
 		setAssignedTexture(17, 9);
 		setUserColour(18, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-	  	setAssignedTexture(18, 18); //18 18 would be ok fdor a normal ass wall
+		setAssignedTexture(18, 18); //18 18 would be ok fdor a normal ass wall
 		setUserColour(19, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-	  	setAssignedTexture(19, 37);
+		setAssignedTexture(19, 37);
 
 		setUserColour(20, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0); //for grass
-	  	setAssignedTexture(20, 41);
+		setAssignedTexture(20, 41);
 		setUserColour(21, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0); //for mud
-	  	setAssignedTexture(21, 12);
+		setAssignedTexture(21, 12);
 		setUserColour(22, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0); //for mountaintops
-	  	setAssignedTexture(22, 5); //looks a little dingy, but..
+		setAssignedTexture(22, 5); //looks a little dingy, but..
 
 		setUserColour(23, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0); //for random dungeon blocks
-	  	setAssignedTexture(23, 22);
+		setAssignedTexture(23, 22);
 		
 		setUserColour(24, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0); //for up stairs
-	  	setAssignedTexture(24, 31);
+		setAssignedTexture(24, 31);
 		setUserColour(25, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0); //for down stairs
-	  	setAssignedTexture(25, 32);
+		setAssignedTexture(25, 32);
 
 		float divisor1 = 20.0;
 		float divisor2 = 20.0;
@@ -1588,7 +1672,7 @@ int main(int argc, char** argv) {
 			}
 		}
 		struct coord dummy = {.x = 0, .y = 0, .z = 0}; //c99 sexy
-		struct coord spawn = {.x = 53, .y = QTHEIGHT + 7, .z = 53}; //hopefully never gens in ground. just for testing
+		struct coord spawn = {.x = 53, .y = QTHEIGHT + 8, .z = 53}; //hopefully never gens in ground. just for testing
 		////printf("stairs: %d %d %d %d %d %d\n", dummy.x, dummy.y, dummy.z, spawn.x, spawn.y, spawn.z);
 		floors[0]->stairs[STAIRS_UP] = dummy;
 		floors[0]->stairs[STAIRS_DOWN] = stairslocation;
@@ -1600,6 +1684,9 @@ int main(int argc, char** argv) {
 		//setViewPosition((float)spawn.x, (float)spawn.y, (float)spawn.z);
 		////printf("saving done I think!\n");
 		setViewPosition(-(float)floors[currfloor]->spawn.x,-(float)floors[currfloor]->spawn.y,-(float)floors[currfloor]->spawn.z);
+		curr_viewpos.x = floors[currfloor]->spawn.x;
+		curr_viewpos.y = floors[currfloor]->spawn.y;
+		curr_viewpos.z = floors[currfloor]->spawn.z;
 	}
 
 	/* starts the graphics processing loop */
@@ -1607,4 +1694,3 @@ int main(int argc, char** argv) {
 	glutMainLoop();
 	return 0; 
 }
-
