@@ -25,6 +25,7 @@ extern void collisionResponse();
 extern void buildDisplayList();
 extern void mouse(int, int, int, int);
 extern void draw2D();
+extern void schuut();
 
 	// stores mesh structures read from .obj files
 struct meshStruct *meshobj;
@@ -58,7 +59,7 @@ struct uMesh {
    bool present;
 };
 	/* holds all user mesh instances */
-struct uMesh userMesh[MAXMESH];
+struct uMesh userMesh[MAXMESH] = {0};
 
 	// load mesh from .obj file
 extern int readObjFile(char *, struct meshStruct *);
@@ -88,7 +89,7 @@ int textureAssigned[NUMBERCOLOURS];
 float tOffset[NUMBERCOLOURS][2];
 
 	/* texture information for meshes, mirrors previous texture variables */
-GLuint   meshtextureID[NUMBERMESH];
+GLuint meshtextureID[NUMBERMESH];
 int meshtextureCount = 0;
 int meshtextureUsed[NUMBERMESH];
 
@@ -982,6 +983,10 @@ void keyboard(unsigned char key, int x, int y)
 	float a, b, c = 0.0;
 	static int lighton = 1;
 
+	if (key == ' ') {
+		schuut(); //i'd like top be able to shoot while moving
+	}
+
 	switch (key) {
 		case 'p':
 			getViewPosition(&a, &b, &c);
@@ -1089,9 +1094,6 @@ void keyboard(unsigned char key, int x, int y)
 			break;
 		case 'c':
 			collisions = !collisions;
-			break;
-		case ' ':		// toggle space flag
-			space = 1;
 			break;
 		case 'm':		// toggle map display, 0=none, 1=small, 2=large
 			displayMap++;
@@ -1633,6 +1635,10 @@ int getMeshNumber(int id) {
 
 void unsetMeshID(int id) {
    meshUsed[id] = 0;
+} //
+
+int getMeshUsed(int id) {
+	return meshUsed[id];
 }
 
 float getx(int id) {return userMesh[id].xpos;}
